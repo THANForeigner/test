@@ -1,3 +1,5 @@
+@file:JvmName("MainActivityKt")
+
 package com.example.afinal
 
 import androidx.compose.runtime.Composable
