@@ -3,9 +3,12 @@ package com.example.afinal.ui.screen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape // Để bo tròn góc bản đồ
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip // Để cắt bản đồ theo hình dáng
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -14,11 +17,33 @@ import androidx.navigation.compose.rememberNavController
 import com.example.afinal.navigation.Routes
 import com.example.afinal.ui.theme.FINALTheme
 import com.example.afinal.data.repository.StoryRepository
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
 fun HomeScreen(navController: NavController) {
     val featuredStory = StoryRepository.getFeaturedStory()
     val nearbyStories = StoryRepository.getNearbyStories()
+
+    val locationLatLng = if (featuredStory != null) {
+        LatLng(featuredStory.latitude, featuredStory.longitude)
+    } else {
+        LatLng(10.762622, 106.660172)
+    }
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(locationLatLng, 16f)
+    }
+    LaunchedEffect(locationLatLng) {
+        cameraPositionState.animate(
+            CameraUpdateFactory.newLatLngZoom(locationLatLng, 16f)
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -30,17 +55,42 @@ fun HomeScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text("Your location:", style = MaterialTheme.typography.titleMedium)
-            val gpsText = if (featuredStory != null) {
-                "${featuredStory.latitude}° N, ${featuredStory.longitude}° E (${featuredStory.locationName})"
-            } else {
-                "Không tìm thấy vị trí"
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    uiSettings = MapUiSettings(
+                        zoomControlsEnabled = false,
+                        myLocationButtonEnabled = false,
+                        rotationGesturesEnabled = false
+                    )
+                ) {
+                    Marker(
+                        state = MarkerState(position = locationLatLng),
+                        title = featuredStory?.locationName ?: "Vị trí của bạn",
+                        snippet = "Bạn đang ở đây"
+                    )
+                }
             }
-            Text(gpsText, style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+            Spacer(modifier = Modifier.height(8.dp))
+            if (featuredStory != null) {
+                Text(
+                    text = "📍 ${featuredStory.locationName}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Text("Available stories:", style = MaterialTheme.typography.titleMedium)
-
-            // Logic: Nếu ở gần, hiển thị câu chuyện
 
             if (featuredStory != null) {
                 Card(
