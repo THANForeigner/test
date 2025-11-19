@@ -10,6 +10,7 @@ import com.example.afinal.LocationGPS
 import com.example.afinal.LocationViewModel
 import com.example.afinal.StoryViewModel
 import com.example.afinal.navigation.Routes // <-- Đã thêm import này
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -39,13 +40,24 @@ fun MapScreen(navController: NavController) {
         position = CameraPosition.fromLatLngZoom(LatLng(10.762622, 106.660172), 14f)
     }
 
+    LaunchedEffect(myLocation) {
+        myLocation?.let { loc ->
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(
+                    LatLng(loc.latitude, loc.longitude),
+                    17f // Zoom level (15 is street, 20 is building)
+                ),
+                1000 // Animation duration in ms
+            )
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 3. Hiển thị Google Map
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState
         ) {
-            // Marker vị trí của tôi (Màu xanh dương)
             if (myLocation != null) {
                 Marker(
                     state = MarkerState(position = LatLng(myLocation.latitude, myLocation.longitude)),
