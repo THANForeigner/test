@@ -1,36 +1,73 @@
 package com.example.afinal.ui.screen
 
+import android.media.MediaPlayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import com.example.afinal.R
 import com.example.afinal.data.repository.StoryRepository
-import com.example.afinal.ui.theme.FINALTheme
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(navController: NavController, storyId: String) {
-    val story = remember(storyId) {
-        StoryRepository.getStoryById(storyId)
+    // Lấy story từ ID
+    val story = remember(storyId) { StoryRepository.getStoryById(storyId) }
+    val context = LocalContext.current
+
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
+    var totalDuration by remember { mutableLongStateOf(0L) }
+
+    val mediaPlayer = remember(story) {
+        if (story != null) {
+            MediaPlayer.create(context, story.audioResourceId)?.apply {
+                setOnCompletionListener {
+                    isPlaying = false
+                    seekTo(0)
+                }
+            }
+        } else {
+            null
+        }
+    }
+
+    LaunchedEffect(mediaPlayer) {
+        mediaPlayer?.let {
+            totalDuration = it.duration.toLong()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer?.release()
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            mediaPlayer?.let {
+                currentPosition = it.currentPosition.toLong()
+            }
+            delay(500)
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(story?.locationName ?: "Detail") },
+                title = { Text(story?.locationName ?: "Chi tiết") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
@@ -43,14 +80,8 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
         }
     ) { innerPadding ->
         if (story == null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Story not found.", style = MaterialTheme.typography.titleMedium)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Không tìm thấy câu chuyện.")
             }
         } else {
             Column(
@@ -60,96 +91,65 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = story.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(story.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = story.locationName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text(story.locationName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = story.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Justify
-                )
-                Spacer(modifier = Modifier.weight(1f)) // Đẩy trình phát nhạc xuống dưới
+                Text(story.description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Justify)
 
-                // Trình phát nhạc (Giả lập)
-                AudioPlayerControls()
+                Spacer(modifier = Modifier.weight(1f))
+
+                // --- PHẦN ĐIỀU KHIỂN ---
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Thanh trượt
+                    Slider(
+                        value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
+                        onValueChange = { newPercent ->
+                            val newPosition = (newPercent * totalDuration).toLong()
+                            currentPosition = newPosition
+                            mediaPlayer?.seekTo(newPosition.toInt())
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(formatTime(currentPosition))
+                        Text(formatTime(totalDuration))
+                    }
+
+                    IconButton(
+                        onClick = {
+                            mediaPlayer?.let { mp ->
+                                if (mp.isPlaying) {
+                                    mp.pause()
+                                    isPlaying = false
+                                } else {
+                                    mp.start()
+                                    isPlaying = true
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-fun AudioPlayerControls() {
-    // Đây là các trạng thái GIẢ LẬP.
-    // Sau này bạn sẽ thay bằng trạng thái của MediaPlayer/ExoPlayer
-    var isPlaying by remember { mutableStateOf(false) }
-    var sliderPosition by remember { mutableFloatStateOf(0.3f) } // Giả lập đang ở 30%
-    val totalDuration = "05:00" // Giả lập
-    val currentTime = "01:30" // Giả lập
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Slider(
-            value = sliderPosition,
-            onValueChange = { sliderPosition = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(currentTime)
-            Text(totalDuration)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { /* TODO: Tua lại */ }) {
-                Icon(Icons.Default.FastRewind, contentDescription = "Tua lại", modifier = Modifier.size(36.dp))
-            }
-            IconButton(
-                onClick = { isPlaying = !isPlaying },
-                modifier = Modifier.size(64.dp)
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Tạm dừng" else "Phát",
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            IconButton(onClick = { /* TODO: Tua đi */ }) {
-                Icon(Icons.Default.FastForward, contentDescription = "Tua đi", modifier = Modifier.size(36.dp))
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewAudioPlayerScreen() {
-    FINALTheme() {
-        // Lấy story đầu tiên từ MockData để preview
-        val previewStory = StoryRepository.getStoryById("dinhdoclap")
-        AudioPlayerScreen(
-            navController = rememberNavController(),
-            storyId = previewStory?.id ?: "dinhdoclap"
-        )
-    }
+fun formatTime(ms: Long): String {
+    if (ms <= 0) return "00:00"
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%02d:%02d", minutes, seconds)
 }

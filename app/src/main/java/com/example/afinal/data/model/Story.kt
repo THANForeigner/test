@@ -7,5 +7,7 @@ data class Story(
     val audioUrl: String,
     val locationName: String,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+
+    val audioResourceId: Int
 )
