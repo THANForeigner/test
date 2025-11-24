@@ -9,17 +9,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import com.example.afinal.AuthViewModel
 import com.example.afinal.navigation.Routes
-import com.example.afinal.ui.theme.FINALTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(navController: NavController) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    val authViewModel: AuthViewModel = viewModel()
+    val coroutineScope = rememberCoroutineScope()
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -33,7 +36,10 @@ fun LoginScreen(navController: NavController) {
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                errorMessage = null
+            },
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -41,7 +47,10 @@ fun LoginScreen(navController: NavController) {
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                errorMessage = null
+            },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -51,15 +60,24 @@ fun LoginScreen(navController: NavController) {
 
         Button(
             onClick = {
-                // Logic đăng nhập
-
-                navController.navigate(Routes.MAIN_APP) {
-                    popUpTo(Routes.LOGIN) { inclusive = true }
+                coroutineScope.launch {
+                    val success = authViewModel.login(email, password)
+                    if (success) {
+                        navController.navigate(Routes.MAIN_APP) {
+                            popUpTo(Routes.LOGIN) { inclusive = true }
+                        }
+                    } else {
+                        errorMessage = "Login failed. Please check your credentials."
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Login")
+        }
+        errorMessage?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = it, color = MaterialTheme.colorScheme.error)
         }
         Spacer(modifier = Modifier.height(16.dp))
         TextButton(
@@ -67,13 +85,5 @@ fun LoginScreen(navController: NavController) {
         ) {
             Text("Don't have an account? Register")
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewLoginScreen() {
-    FINALTheme() {
-        LoginScreen(navController = rememberNavController())
     }
 }

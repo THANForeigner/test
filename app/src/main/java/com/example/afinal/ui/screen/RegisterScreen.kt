@@ -1,23 +1,30 @@
 package com.example.afinal.ui.screen
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.afinal.AuthViewModel
 import com.example.afinal.navigation.Routes
+import kotlinx.coroutines.launch
 
 @Composable
 fun RegisterScreen(navController: NavController) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
+    val authViewModel: AuthViewModel = viewModel()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
 
     Column(
         modifier = Modifier
@@ -31,7 +38,10 @@ fun RegisterScreen(navController: NavController) {
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                errorMessage = null
+            },
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -39,7 +49,10 @@ fun RegisterScreen(navController: NavController) {
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                errorMessage = null
+            },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
@@ -48,7 +61,10 @@ fun RegisterScreen(navController: NavController) {
 
         OutlinedTextField(
             value = confirmPassword,
-            onValueChange = { confirmPassword = it },
+            onValueChange = {
+                confirmPassword = it
+                errorMessage = null
+            },
             label = { Text("Confirm Password") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
@@ -57,15 +73,28 @@ fun RegisterScreen(navController: NavController) {
 
         Button(
             onClick = {
-                // Logic đăng ký...
-
-                navController.navigate(Routes.LOGIN) {
-                    popUpTo(Routes.LOGIN) { inclusive = true }
+                if (password != confirmPassword) {
+                    errorMessage = "Passwords do not match"
+                } else {
+                    coroutineScope.launch {
+                        val success = authViewModel.register(email, password)
+                        if (success) {
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }
+                            }
+                        } else {
+                            errorMessage = "Registration failed. Please try again."
+                        }
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Sign up")
+        }
+        errorMessage?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = it, color = MaterialTheme.colorScheme.error)
         }
         Spacer(modifier = Modifier.height(16.dp))
         TextButton(
