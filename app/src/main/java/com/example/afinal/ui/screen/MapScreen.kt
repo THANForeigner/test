@@ -1,15 +1,25 @@
 package com.example.afinal.ui.screen
 
-import androidx.compose.foundation.layout.*
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Location
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.afinal.LocationGPS
 import com.example.afinal.LocationViewModel
 import com.example.afinal.StoryViewModel
-import com.example.afinal.navigation.Routes // <-- Đã thêm import này
+import com.example.afinal.navigation.Routes
 import com.example.afinal.utils.GeofenceHelper
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -19,75 +29,120 @@ import com.google.maps.android.compose.*
 @Composable
 fun MapScreen(navController: NavController) {
     val context = LocalContext.current
-
-    // 1. Gọi các ViewModel
     val locationViewModel: LocationViewModel = viewModel()
     val storyViewModel: StoryViewModel = viewModel()
 
-    // 2. Lấy dữ liệu từ ViewModel
-    // SỬA: Dùng .locations (số nhiều) thay vì .location
-    val locations = storyViewModel.locations.value
+    val locations by storyViewModel.locations
     val myLocation = locationViewModel.location.value
+
     val geofenceHelper = remember { GeofenceHelper(context) }
-    // Logic lấy GPS
     val myLocationUtils = remember { LocationGPS(context) }
-    LaunchedEffect(Unit) {
-        if (myLocationUtils.hasLocationPermission(context)) {
+
+    // School Center (VNUHCM)
+    val schoolCenter = LatLng(10.762867, 106.682496)
+
+    // Permission State
+    var hasForegroundPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    var hasBackgroundPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    // Launcher 2: Background Permission
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasBackgroundPermission = isGranted
+        if (isGranted && locations.isNotEmpty()) {
+            geofenceHelper.addGeofences(locations)
+        }
+    }
+
+    // Launcher 1: Foreground Permission
+    val foregroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        hasForegroundPermission = isGranted
+        if (isGranted) {
             myLocationUtils.requestLocationUpdate(locationViewModel)
+            // If newer Android, request background permission next
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasBackgroundPermission) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val permissionsToRequest = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (!hasForegroundPermission) {
+            foregroundPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            myLocationUtils.requestLocationUpdate(locationViewModel)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasBackgroundPermission) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+        }
+    }
+
+    // Geofence Logic: Add only if permissions granted and inside 500m of school
+    LaunchedEffect(myLocation, locations, hasBackgroundPermission) {
+        if (locations.isNotEmpty() && myLocation != null && hasBackgroundPermission) {
+            val results = FloatArray(1)
+            Location.distanceBetween(
+                myLocation.latitude, myLocation.longitude,
+                schoolCenter.latitude, schoolCenter.longitude,
+                results
+            )
+            if (results[0] < 500) { // 500m radius
+                geofenceHelper.addGeofences(locations)
+            } else {
+                geofenceHelper.removeGeofences()
+            }
         }
     }
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(10.762622, 106.660172), 14f)
-    }
-
-    LaunchedEffect(locations) {
-        if (locations.isNotEmpty()) {
-            // Đảm bảo bạn đã check quyền ACCESS_FINE_LOCATION và ACCESS_BACKGROUND_LOCATION
-            // trước khi gọi hàm này để tránh crash
-            try {
-                geofenceHelper.addGeofences(locations)
-            } catch (e: SecurityException) {
-                // Xử lý nếu chưa cấp quyền
-            }
-        }
-    }
-
-    LaunchedEffect(myLocation) {
-        myLocation?.let { loc ->
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(
-                    LatLng(loc.latitude, loc.longitude),
-                    17f // Zoom level (15 is street, 20 is building)
-                ),
-                1000 // Animation duration in ms
-            )
-        }
+        position = CameraPosition.fromLatLngZoom(schoolCenter, 17f)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 3. Hiển thị Google Map
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
+            cameraPositionState = cameraPositionState,
+            properties = MapProperties(isMyLocationEnabled = hasForegroundPermission)
         ) {
-            if (myLocation != null) {
-                Marker(
-                    state = MarkerState(position = LatLng(myLocation.latitude, myLocation.longitude)),
-                    title = "You are here"
-                )
-            }
-
-            // Marker cho các địa điểm từ Firestore (Màu đỏ mặc định)
             locations.forEach { loc ->
+                // Debug Circle
+                Circle(
+                    center = LatLng(loc.latitude, loc.longitude),
+                    radius = GeofenceHelper.GEOFENCE_RADIUS.toDouble(),
+                    fillColor = Color(0x44FF0000),
+                    strokeColor = Color.Red,
+                    strokeWidth = 2f
+                )
                 Marker(
                     state = MarkerState(position = LatLng(loc.latitude, loc.longitude)),
                     title = loc.locationName,
-                    snippet = "Press to see audio list",
-                    icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
-                        com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_AZURE),
+                    snippet = "Tap to listen",
                     onClick = {
-                        // Truyền ID của Location cha sang màn hình Player
                         navController.navigate("${Routes.AUDIO_PLAYER}/${loc.id}")
                         false
                     }

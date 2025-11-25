@@ -5,62 +5,76 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.example.afinal.data.model.LocationModel
+import com.example.afinal.GeofenceBroadcastReceiver
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 
-class GeofenceHelper(base: Context) : ContextWrapper(base) {
+class GeofenceHelper(context: Context) : ContextWrapper(context) {
 
-    private val geofencingClient = LocationServices.getGeofencingClient(this)
+    private val geofencingClient = LocationServices.getGeofencingClient(context)
 
-    // PendingIntent để gọi BroadcastReceiver khi Geofence kích hoạt
     private val geofencePendingIntent: PendingIntent by lazy {
-        val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
-        // FLAG_UPDATE_CURRENT và FLAG_MUTABLE (cho Android 12+) là bắt buộc
-        PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+        val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_MUTABLE
+        }
+        PendingIntent.getBroadcast(context, 0, intent, flags)
     }
 
-    @SuppressLint("MissingPermission") // Quyền đã được check ở UI trước khi gọi hàm này
+    @SuppressLint("MissingPermission")
     fun addGeofences(locations: List<LocationModel>) {
         if (locations.isEmpty()) return
 
         val geofenceList = locations.map { loc ->
             Geofence.Builder()
-                .setRequestId(loc.id) // ID của Location (ví dụ: "Building_I")
-                .setCircularRegion(
-                    loc.latitude,
-                    loc.longitude,
-                    GEOFENCE_RADIUS // Bán kính (mét)
-                )
+                .setRequestId(loc.id)
+                .setCircularRegion(loc.latitude, loc.longitude, GEOFENCE_RADIUS)
                 .setExpirationDuration(Geofence.NEVER_EXPIRE)
-                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER) // Chỉ kích hoạt khi đi VÀO
+                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
                 .build()
         }
 
         val geofencingRequest = GeofencingRequest.Builder()
-            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER) // Kích hoạt ngay nếu đang đứng trong vùng đó
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
             .addGeofences(geofenceList)
             .build()
 
         geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent)
             .addOnSuccessListener {
-                Log.d("GeofenceHelper", "Đã thêm ${geofenceList.size} geofences thành công!")
+                Log.d("GeofenceHelper", "Added ${geofenceList.size} geofences successfully.")
             }
             .addOnFailureListener { e ->
-                Log.e("GeofenceHelper", "Lỗi thêm geofence: ${e.message}")
+                val errorMessage = getErrorString(e)
+                Log.e("GeofenceHelper", "Failed to add geofences: $errorMessage")
             }
     }
 
     fun removeGeofences() {
         geofencingClient.removeGeofences(geofencePendingIntent)
-            .addOnSuccessListener {
-                Log.d("GeofenceHelper", "Đã xóa toàn bộ geofences")
+            .addOnSuccessListener { Log.d("GeofenceHelper", "Geofences removed") }
+            .addOnFailureListener { Log.e("GeofenceHelper", "Failed to remove geofences") }
+    }
+
+    private fun getErrorString(e: Exception): String {
+        if (e is com.google.android.gms.common.api.ApiException) {
+            return when (e.statusCode) {
+                GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE -> "Geofence not available (Location disabled?)"
+                GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES -> "Too many geofences"
+                GeofenceStatusCodes.GEOFENCE_TOO_MANY_PENDING_INTENTS -> "Too many pending intents"
+                1004 -> "Insufficient Location Permissions (Need Background Location)"
+                else -> "Unknown Geofence Error: ${e.statusCode}"
             }
+        }
+        return e.localizedMessage ?: "Unknown Error"
     }
 
     companion object {
-        const val GEOFENCE_RADIUS = 50f // Bán kính 50m
+        const val GEOFENCE_RADIUS = 30f
     }
 }
