@@ -1,6 +1,7 @@
 package com.example.afinal.ui.screen
 
 import android.media.MediaPlayer
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,74 +15,73 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.afinal.R
-import com.example.afinal.data.repository.StoryRepository
-import kotlinx.coroutines.delay
+import com.example.afinal.StoryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(navController: NavController, storyId: String) {
-    // Lấy story từ ID
-    val story = remember(storyId) { StoryRepository.getStoryById(storyId) }
+    val storyViewModel: StoryViewModel = viewModel()
+    // Get the specific story from the loaded list
+    val story = storyViewModel.currentStories.value.find { it.id == storyId }
     val context = LocalContext.current
 
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableLongStateOf(0L) }
     var totalDuration by remember { mutableLongStateOf(0L) }
 
-    val mediaPlayer = remember(story) {
-        if (story != null) {
-            MediaPlayer.create(context, story.audioResourceId)?.apply {
-                setOnCompletionListener {
-                    isPlaying = false
-                    seekTo(0)
-                }
-            }
-        } else {
-            null
-        }
-    }
+    val mediaPlayer = remember { MediaPlayer() }
 
-    LaunchedEffect(mediaPlayer) {
-        mediaPlayer?.let {
-            totalDuration = it.duration.toLong()
+    // Load the audio when story is ready
+    LaunchedEffect(story) {
+        if (story != null && story.playableUrl.isNotEmpty()) {
+            try {
+                mediaPlayer.reset()
+                mediaPlayer.setDataSource(story.playableUrl)
+                mediaPlayer.prepareAsync() // Async to avoid UI freeze
+                mediaPlayer.setOnPreparedListener { mp ->
+                    totalDuration = mp.duration.toLong()
+                }
+                mediaPlayer.setOnCompletionListener {
+                    isPlaying = false
+                    it.seekTo(0)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error loading audio", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            mediaPlayer?.release()
+            mediaPlayer.release()
         }
     }
 
+    // Update slider
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
-            mediaPlayer?.let {
-                currentPosition = it.currentPosition.toLong()
-            }
-            delay(500)
+            currentPosition = mediaPlayer.currentPosition.toLong()
+            kotlinx.coroutines.delay(500)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(story?.locationName ?: "Chi tiết") },
+                title = { Text(story?.title ?: "Playing Story") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                }
             )
         }
     ) { innerPadding ->
         if (story == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Không tìm thấy câu chuyện.")
+                Text("Story not found or loading...")
             }
         } else {
             Column(
@@ -91,55 +91,48 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(story.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(story.locationName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(story.description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Justify)
+                Text(story.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(story.description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // --- PHẦN ĐIỀU KHIỂN ---
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Thanh trượt
-                    Slider(
-                        value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
-                        onValueChange = { newPercent ->
-                            val newPosition = (newPercent * totalDuration).toLong()
-                            currentPosition = newPosition
-                            mediaPlayer?.seekTo(newPosition.toInt())
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                // Slider
+                Slider(
+                    value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
+                    onValueChange = { newPercent ->
+                        val newPosition = (newPercent * totalDuration).toLong()
+                        currentPosition = newPosition
+                        mediaPlayer.seekTo(newPosition.toInt())
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(formatTime(currentPosition))
+                    Text(formatTime(totalDuration))
+                }
+
+                IconButton(
+                    onClick = {
+                        if (isPlaying) {
+                            mediaPlayer.pause()
+                            isPlaying = false
+                        } else {
+                            mediaPlayer.start()
+                            isPlaying = true
+                        }
+                    },
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        modifier = Modifier.fillMaxSize()
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(formatTime(currentPosition))
-                        Text(formatTime(totalDuration))
-                    }
-
-                    IconButton(
-                        onClick = {
-                            mediaPlayer?.let { mp ->
-                                if (mp.isPlaying) {
-                                    mp.pause()
-                                    isPlaying = false
-                                } else {
-                                    mp.start()
-                                    isPlaying = true
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(80.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
                 }
             }
         }
@@ -147,7 +140,6 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
 }
 
 fun formatTime(ms: Long): String {
-    if (ms <= 0) return "00:00"
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60

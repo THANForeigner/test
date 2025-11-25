@@ -76,4 +76,6 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
+    implementation("com.google.firebase:firebase-storage")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
 }

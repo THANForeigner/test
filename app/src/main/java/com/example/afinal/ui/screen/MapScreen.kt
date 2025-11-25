@@ -4,9 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -41,68 +38,27 @@ fun MapScreen(navController: NavController) {
     // School Center (VNUHCM)
     val schoolCenter = LatLng(10.762867, 106.682496)
 
-    // Permission State
-    var hasForegroundPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        )
+    // Passive Permission Check
+    val hasForegroundPermission = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+
+    val hasBackgroundPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
     }
 
-    var hasBackgroundPermission by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
-        )
-    }
-
-    // Launcher 2: Background Permission
-    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasBackgroundPermission = isGranted
-        if (isGranted && locations.isNotEmpty()) {
-            geofenceHelper.addGeofences(locations)
-        }
-    }
-
-    // Launcher 1: Foreground Permission
-    val foregroundPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val isGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        hasForegroundPermission = isGranted
-        if (isGranted) {
+    // GPS Updates (only if allowed)
+    LaunchedEffect(hasForegroundPermission) {
+        if (hasForegroundPermission) {
             myLocationUtils.requestLocationUpdate(locationViewModel)
-            // If newer Android, request background permission next
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasBackgroundPermission) {
-                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            }
         }
     }
 
-    LaunchedEffect(Unit) {
-        val permissionsToRequest = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        if (!hasForegroundPermission) {
-            foregroundPermissionLauncher.launch(permissionsToRequest.toTypedArray())
-        } else {
-            myLocationUtils.requestLocationUpdate(locationViewModel)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasBackgroundPermission) {
-                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            }
-        }
-    }
-
-    // Geofence Logic: Add only if permissions granted and inside 500m of school
+    // Geofencing (only if allowed & near school)
     LaunchedEffect(myLocation, locations, hasBackgroundPermission) {
         if (locations.isNotEmpty() && myLocation != null && hasBackgroundPermission) {
             val results = FloatArray(1)
@@ -111,7 +67,7 @@ fun MapScreen(navController: NavController) {
                 schoolCenter.latitude, schoolCenter.longitude,
                 results
             )
-            if (results[0] < 500) { // 500m radius
+            if (results[0] < 500) {
                 geofenceHelper.addGeofences(locations)
             } else {
                 geofenceHelper.removeGeofences()
@@ -141,7 +97,7 @@ fun MapScreen(navController: NavController) {
                 Marker(
                     state = MarkerState(position = LatLng(loc.latitude, loc.longitude)),
                     title = loc.locationName,
-                    snippet = "Tap to listen",
+                    snippet = "Tap to view posts",
                     onClick = {
                         navController.navigate("${Routes.AUDIO_PLAYER}/${loc.id}")
                         false

@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.afinal.data.model.LocationModel
 import com.example.afinal.data.model.StoryModel
 import com.google.firebase.firestore.FirebaseFirestore
-// REMOVED: import com.google.firebase.firestore.toObjects (causes error)
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -28,27 +28,23 @@ class StoryViewModel : ViewModel() {
             val db = FirebaseFirestore.getInstance()
             val loadedLocations = mutableListOf<LocationModel>()
 
-            // Fetch from both indoor and outdoor collections
+            // 1. Access the root 'locations' document
+            // Path: locations (col) -> locations (doc)
+            val rootRef = db.collection("locations").document("locations")
             val collectionsToFetch = listOf("indoor_locations", "outdoor_locations")
 
             try {
                 for (collectionName in collectionsToFetch) {
-                    // 1. Get all documents (e.g., "Building_I", "Flag")
-                    val snapshot = db.collection(collectionName).get().await()
+                    // 2. Get the sub-collection (e.g., indoor_locations)
+                    val snapshot = rootRef.collection(collectionName).get().await()
 
                     for (document in snapshot.documents) {
-                        // 2. Dive into 'coordinate' subcollection -> 'coordinate' document
-                        val coordDoc = document.reference
-                            .collection("coordinate")
-                            .document("coordinate")
-                            .get()
-                            .await()
+                        // 3. READ FIELDS DIRECTLY FROM THE BUILDING DOCUMENT
+                        // Path: .../indoor_locations/Building_I -> fields: latitude, longitude
+                        val lat = document.getDouble("latitude")
+                        val lng = document.getDouble("longitude")
 
-                        if (coordDoc.exists()) {
-                            val lat = coordDoc.getDouble("latitude") ?: 0.0
-                            val lng = coordDoc.getDouble("longitude") ?: 0.0
-
-                            // Use document ID as the name (e.g., "Building_I")
+                        if (lat != null && lng != null) {
                             loadedLocations.add(
                                 LocationModel(
                                     id = document.id,
@@ -57,52 +53,73 @@ class StoryViewModel : ViewModel() {
                                     longitude = lng
                                 )
                             )
+                        } else {
+                            Log.w("Firestore", "Missing coordinates for ${document.id}")
                         }
                     }
                 }
-
                 _locations.value = loadedLocations
-                Log.d("Firestore", "Success: Loaded ${loadedLocations.size} locations")
+                Log.d("Firestore", "Loaded ${loadedLocations.size} locations")
 
             } catch (e: Exception) {
-                Log.e("Firestore", "Error fetching locations: ${e.message}")
+                Log.e("Firestore", "Error fetching locations", e)
             }
         }
     }
 
+    // Uses Collection Group to find "posts" deep in the structure (e.g. floor/1/posts)
+    //
     fun fetchStoriesForLocation(locationId: String) {
         val db = FirebaseFirestore.getInstance()
+        val storage = FirebaseStorage.getInstance()
 
-        // Try searching in indoor_locations first
-        db.collection("indoor_locations").document(locationId).collection("Stories")
-            .get()
+        db.collectionGroup("posts").get()
             .addOnSuccessListener { snapshot ->
-                if (!snapshot.isEmpty) {
-                    // Use Class.java to avoid import errors
-                    _currentStories.value = snapshot.toObjects(StoryModel::class.java)
-                } else {
-                    // Not found? Try outdoor_locations
-                    fetchStoriesFromOutdoor(locationId)
+                val storiesList = mutableListOf<StoryModel>()
+
+                // Filter: Only keep posts where the path contains the Building ID (e.g. "Building_I")
+                val matches = snapshot.documents.filter { doc ->
+                    doc.reference.path.contains(locationId)
                 }
-            }
-            .addOnFailureListener {
-                fetchStoriesFromOutdoor(locationId)
-            }
-    }
 
-    private fun fetchStoriesFromOutdoor(locationId: String) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("outdoor_locations").document(locationId).collection("Stories")
-            .get()
-            .addOnSuccessListener { snapshot ->
-                if (!snapshot.isEmpty) {
-                    _currentStories.value = snapshot.toObjects(StoryModel::class.java)
-                } else {
+                if (matches.isEmpty()) {
                     _currentStories.value = emptyList()
+                    return@addOnSuccessListener
+                }
+
+                var processedCount = 0
+                for (doc in matches) {
+                    val story = doc.toObject(StoryModel::class.java)?.copy(id = doc.id)
+
+                    if (story != null && story.audioUrl.startsWith("gs://")) {
+                        // Convert gs:// to playable HTTPS URL
+                        try {
+                            val gsRef = storage.getReferenceFromUrl(story.audioUrl)
+                            gsRef.downloadUrl.addOnSuccessListener { uri ->
+                                story.playableUrl = uri.toString()
+                                storiesList.add(story)
+                                processedCount++
+                                if (processedCount == matches.size) _currentStories.value = storiesList
+                            }.addOnFailureListener {
+                                Log.e("Storage", "Failed to resolve URL for ${story.title}")
+                                processedCount++
+                                if (processedCount == matches.size) _currentStories.value = storiesList
+                            }
+                        } catch (e: Exception) {
+                            Log.e("Storage", "Invalid GS URL: ${story.audioUrl}")
+                            processedCount++
+                        }
+                    } else if (story != null) {
+                        story.playableUrl = story.audioUrl
+                        storiesList.add(story)
+                        processedCount++
+                        if (processedCount == matches.size) _currentStories.value = storiesList
+                    }
                 }
             }
             .addOnFailureListener {
                 _currentStories.value = emptyList()
+                Log.e("Firestore", "Error fetching stories: ${it.message}")
             }
     }
 }
