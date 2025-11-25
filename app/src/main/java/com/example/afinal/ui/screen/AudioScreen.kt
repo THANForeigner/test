@@ -10,17 +10,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.afinal.data.repository.StoryRepository
+import com.example.afinal.StoryViewModel
 import com.example.afinal.navigation.Routes
 
 @Composable
 fun AudiosScreen(navController: NavController) {
-
-    val allStories = StoryRepository.getAllStories()
+    // Use the ViewModel
+    val storyViewModel: StoryViewModel = viewModel()
+    // Observe the list of all stories fetched from Firebase
+    val allStories by storyViewModel.allStories
 
     LazyColumn(
         modifier = Modifier
@@ -50,6 +54,7 @@ fun AudiosScreen(navController: NavController) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(story.title, style = MaterialTheme.typography.titleMedium)
+                        // Show the extracted location name (e.g., "Building_I")
                         Text(story.locationName, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.width(16.dp))

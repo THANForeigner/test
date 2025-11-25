@@ -23,8 +23,8 @@ import com.example.afinal.StoryViewModel
 @Composable
 fun AudioPlayerScreen(navController: NavController, storyId: String) {
     val storyViewModel: StoryViewModel = viewModel()
-    // Get the specific story from the loaded list
-    val story = storyViewModel.currentStories.value.find { it.id == storyId }
+    // Look for story in both lists
+    val story = storyViewModel.getStory(storyId)
     val context = LocalContext.current
 
     var isPlaying by remember { mutableStateOf(false) }
@@ -33,13 +33,12 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
 
     val mediaPlayer = remember { MediaPlayer() }
 
-    // Load the audio when story is ready
     LaunchedEffect(story) {
         if (story != null && story.playableUrl.isNotEmpty()) {
             try {
                 mediaPlayer.reset()
                 mediaPlayer.setDataSource(story.playableUrl)
-                mediaPlayer.prepareAsync() // Async to avoid UI freeze
+                mediaPlayer.prepareAsync()
                 mediaPlayer.setOnPreparedListener { mp ->
                     totalDuration = mp.duration.toLong()
                 }
@@ -54,12 +53,9 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
     }
 
     DisposableEffect(Unit) {
-        onDispose {
-            mediaPlayer.release()
-        }
+        onDispose { mediaPlayer.release() }
     }
 
-    // Update slider
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             currentPosition = mediaPlayer.currentPosition.toLong()
@@ -70,7 +66,7 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(story?.title ?: "Playing Story") },
+                title = { Text(story?.title ?: "Player") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -81,7 +77,7 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
     ) { innerPadding ->
         if (story == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Story not found or loading...")
+                Text("Loading or Story not found...")
             }
         } else {
             Column(
@@ -92,12 +88,13 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(story.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(story.locationName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(story.description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Slider
                 Slider(
                     value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
                     onValueChange = { newPercent ->

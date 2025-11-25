@@ -12,5 +12,6 @@ data class StoryModel(
     val audioUrl: String = "",
     val likes: Int = 0,
     val dislikes: Int = 0,
-    var playableUrl: String = ""
+    var playableUrl: String = "",
+    var locationName: String = ""
 )
