@@ -7,8 +7,8 @@ import androidx.lifecycle.ViewModel
 import com.example.afinal.data.model.LocationModel
 import com.example.afinal.data.model.StoryModel
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.toObjects
-import java.lang.Class
+import com.google.firebase.firestore.toObjects
+
 
 class StoryViewModel : ViewModel() {
     private val _locations = mutableStateOf<List<LocationModel>>(emptyList())
