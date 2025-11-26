@@ -112,6 +112,15 @@ fun AudioPlayerScreen(navController: NavController, storyId: String) {
                 Text(story.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(story.locationName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                if (story.user.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Posted by: ${story.user}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(story.description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
 

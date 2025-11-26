@@ -106,6 +106,13 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(story.title, style = MaterialTheme.typography.titleMedium)
+                                    if (story.user.isNotEmpty()) {
+                                        Text(
+                                            text = "By: ${story.user}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
                                     Text(story.description, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                 }
                                 Icon(Icons.Default.PlayCircleOutline, contentDescription = "Play")

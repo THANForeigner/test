@@ -8,6 +8,7 @@ data class StoryModel(
     val id: String = "",
     val title: String = "",
     val description: String = "",
+    val user: String = "",
     @PropertyName("audioURL")
     val audioUrl: String = "",
     val likes: Int = 0,
