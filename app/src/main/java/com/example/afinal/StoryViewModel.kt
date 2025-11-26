@@ -29,6 +29,9 @@ class StoryViewModel : ViewModel() {
     val currentLocation = derivedStateOf {
         _locations.value.find { it.id == _currentLocationId.value }
     }
+
+    private var _loadedFloor = 0
+
     init {
         fetchLocations()
         fetchAllStories()
@@ -100,10 +103,11 @@ class StoryViewModel : ViewModel() {
     }
 
     fun fetchStoriesForLocation(locationId: String, floor: Int = 1) {
-        if (_currentLocationId.value == locationId && _currentFloor.value == floor && _currentStories.value.isNotEmpty()) {
+        if (_currentLocationId.value == locationId && _loadedFloor == floor && _currentStories.value.isNotEmpty()) {
             return
         }
         _currentLocationId.value = locationId
+        _currentFloor.value = floor
         val db = FirebaseFirestore.getInstance()
         val locationType = _locations.value.find { it.id == locationId }?.type ?: "outdoor"
         var query = if (locationType == "indoor") {
@@ -118,6 +122,7 @@ class StoryViewModel : ViewModel() {
             query.get().addOnSuccessListener { snapshot ->
                 processSnapshot(snapshot.documents, locationId, isAllStories = false)
             }
+            _loadedFloor = floor
             setIndoorStatus(true)
         } else {
              query = db.collection("locations").document("locations")
@@ -126,6 +131,7 @@ class StoryViewModel : ViewModel() {
             query.get().addOnSuccessListener { snapshot ->
                 processSnapshot(snapshot.documents, locationId, isAllStories = false)
             }
+            _loadedFloor = floor
             setIndoorStatus(false)
         }
     }

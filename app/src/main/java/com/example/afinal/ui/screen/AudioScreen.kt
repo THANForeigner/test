@@ -146,7 +146,7 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
                     expanded = showFloorMenu,
                     onDismissRequest = { showFloorMenu = false }
                 ) {
-                    listOf(1, 2).forEach { floor ->
+                    listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11).forEach { floor ->
                         DropdownMenuItem(
                             text = { Text("Floor $floor") },
                             onClick = {

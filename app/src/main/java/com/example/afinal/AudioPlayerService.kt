@@ -9,20 +9,30 @@ import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
+import android.support.v4.media.session.MediaSessionCompat
 import androidx.core.app.NotificationCompat
 
 class AudioPlayerService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
     private var isPlaying = false
+    private lateinit var mediaSession: MediaSessionCompat
 
     companion object {
         const val ACTION_PLAY = "ACTION_PLAY"
         const val ACTION_PAUSE = "ACTION_PAUSE"
-        const val ACTION_STOP = "ACTION_STOP"
         const val EXTRA_AUDIO_URL = "EXTRA_AUDIO_URL"
         const val EXTRA_TITLE = "EXTRA_TITLE"
-        const val CHANNEL_ID = "audio_channel"
+        const val EXTRA_USER = "EXTRA_USER"
+        const val CHANNEL_ID = "audio_playback_channel"
+        const val EXTRA_LOCATION = "EXTRA_LOCATION"
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Initialize MediaSession (Important for lock screen controls)
+        mediaSession = MediaSessionCompat(this, "AudioPlayerService")
+        mediaSession.isActive = true
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -30,77 +40,84 @@ class AudioPlayerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         val audioUrl = intent?.getStringExtra(EXTRA_AUDIO_URL)
-        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Story Audio"
+        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Unknown Story"
+        val user = intent?.getStringExtra(EXTRA_USER) ?: "Student Stories"
 
         when (action) {
             ACTION_PLAY -> {
                 if (audioUrl != null) {
-                    playAudio(audioUrl, title)
-                } else if (mediaPlayer != null) {
+                    // New song requested
+                    playAudio(audioUrl, title, user)
+                } else {
+                    // Resume existing
                     mediaPlayer?.start()
                     isPlaying = true
-                    showNotification(title, isPlaying)
+                    showNotification(title, user, true)
                 }
             }
             ACTION_PAUSE -> {
                 mediaPlayer?.pause()
                 isPlaying = false
-                showNotification(title, isPlaying)
-            }
-            ACTION_STOP -> {
-                stopSelf()
+                showNotification(title, user, false)
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun playAudio(url: String, title: String) {
-        // Stop previous if exists
+    private fun playAudio(url: String, title: String, user: String) {
         mediaPlayer?.release()
 
         mediaPlayer = MediaPlayer().apply {
             setDataSource(url)
-            prepareAsync()
+            prepareAsync() // Prepare in background
             setOnPreparedListener {
                 start()
                 this@AudioPlayerService.isPlaying = true
-                showNotification(title, true)
+                showNotification(title, user, true)
             }
             setOnCompletionListener {
                 this@AudioPlayerService.isPlaying = false
-                showNotification(title, false)
-                stopSelf() // Stop service when done
+                showNotification(title, user, false)
+                // Optional: stopSelf() if you want notification to vanish after song
             }
         }
     }
 
-    private fun showNotification(title: String, isPlaying: Boolean) {
+    private fun showNotification(title: String, user: String, isPlaying: Boolean) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Audio Playback", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "Background Audio", NotificationManager.IMPORTANCE_LOW)
             manager.createNotificationChannel(channel)
         }
 
-        // Play/Pause Action
-        val actionIntent = Intent(this, AudioPlayerService::class.java).apply {
+        // Create Play/Pause Action Intent
+        val toggleIntent = Intent(this, AudioPlayerService::class.java).apply {
             action = if (isPlaying) ACTION_PAUSE else ACTION_PLAY
-            // Re-pass extras to keep state
+            // Re-pass data to keep notification state consistent
             putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_USER, user)
         }
-        val actionPendingIntent = PendingIntent.getService(this, 1, actionIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val togglePendingIntent = PendingIntent.getService(
+            this, 0, toggleIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_round)
+            .setSmallIcon(R.mipmap.ic_launcher_round) // Use your app icon
             .setContentTitle(title)
-            .setContentText(if (isPlaying) "Playing..." else "Paused")
+            .setContentText(user)
+            // This style enables the "Spotify-like" media controls
+            .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
+                .setShowActionsInCompactView(0) // Show the first action (Play/Pause) in compact mode
+                .setMediaSession(mediaSession.sessionToken))
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 if (isPlaying) "Pause" else "Play",
-                actionPendingIntent
+                togglePendingIntent
             )
-            .setStyle(androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0))
-            .setOngoing(isPlaying) // Cannot swipe away while playing
+            .setOngoing(isPlaying) // Prevent swiping away while playing
             .build()
 
         startForeground(101, notification)
@@ -109,5 +126,6 @@ class AudioPlayerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
+        mediaSession.release()
     }
 }

@@ -37,10 +37,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             triggeringGeofences?.forEach { geofence ->
                 val locationId = geofence.requestId
                 val pendingResult = goAsync()
-                CoroutineScope(Dispatchers.IO).launch{
-                    try{
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
                         fetchAndNoify(context, locationId)
-                    }finally{
+                    } finally {
                         pendingResult.finish()
                     }
                 }
@@ -48,17 +48,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun fetchAndNoify(context: Context, locationId: String){
+    private suspend fun fetchAndNoify(context: Context, locationId: String) {
         val db = FirebaseFirestore.getInstance()
-        var docRef = db.collection("locations").document("locations").collection("indoor_locations").document(locationId)
+        var docRef = db.collection("locations").document("locations").collection("indoor_locations")
+            .document(locationId)
         var snapshot = docRef.get().await()
         var postsQuery: Query? = null
         var isIndoor: Boolean = false
-        if (snapshot.exists()){
+        if (snapshot.exists()) {
             postsQuery = docRef.collection("floor").document("1").collection("posts")
             isIndoor = true
         } else {
-            docRef = db.collection("locations").document("locations").collection("outdoor_locations").document(locationId)
+            docRef =
+                db.collection("locations").document("locations").collection("outdoor_locations")
+                    .document(locationId)
             postsQuery = docRef.collection("posts")
         }
         try {
@@ -72,39 +75,61 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
             if (storyDoc != null) {
                 val title = storyDoc.getString("title") ?: "New Story Available"
+                val user = storyDoc.getString("user") ?: "Unknow User"
                 val audioUrl = storyDoc.getString("audioURL") ?: ""
-                if(audioUrl.isNotEmpty()) sendNotificationWithPlay(context, locationId, title, audioUrl)
+                if (audioUrl.isNotEmpty()) sendNotificationWithPlay(
+                    context,
+                    locationId,
+                    title,
+                    audioUrl,
+                    user
+                )
             }
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private fun sendNotificationWithPlay(context: Context, locationId: String, title: String, audioUrl: String) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private fun sendNotificationWithPlay(
+        context: Context,
+        locationId: String,
+        title: String,
+        audioUrl: String,
+        user: String
+    ) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "story_alert_channel"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Story Alerts", NotificationManager.IMPORTANCE_HIGH)
+            val channel =
+                NotificationChannel(channelId, "Story Alerts", NotificationManager.IMPORTANCE_HIGH)
             notificationManager.createNotificationChannel(channel)
         }
 
-        // 1. Intent to Open App (Clicking body)
+        // 1. Intent: Opens the App (Clicking the notification body)
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             putExtra("notification_story_id", locationId)
         }
-        val pendingOpenApp = PendingIntent.getActivity(context, locationId.hashCode(), openAppIntent, PendingIntent.FLAG_IMMUTABLE)
+        val pendingOpenApp = PendingIntent.getActivity(
+            context,
+            locationId.hashCode(),
+            openAppIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
 
-        // 2. Intent to Play Audio directly (Clicking "Play Now")
+        // 2. Intent: Starts Background Audio (Clicking "Play" button)
         val playIntent = Intent(context, AudioPlayerService::class.java).apply {
             action = AudioPlayerService.ACTION_PLAY
             putExtra(AudioPlayerService.EXTRA_AUDIO_URL, audioUrl)
             putExtra(AudioPlayerService.EXTRA_TITLE, title)
+            putExtra(AudioPlayerService.EXTRA_USER, user)
+            putExtra(AudioPlayerService.EXTRA_LOCATION, locationId)
         }
-        // Use standard PendingIntent.getService
+        // Note: Use PendingIntent.getService
         val pendingPlay = PendingIntent.getService(
             context,
-            locationId.hashCode(),
+            locationId.hashCode(), // Unique ID per location
             playIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -112,10 +137,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.ic_launcher_round)
             .setContentTitle("Nearby: $title")
-            .setContentText("Tap 'Play' to listen while you walk!")
+            .setContentText("By $user")
             .setContentIntent(pendingOpenApp)
-            .addAction(android.R.drawable.ic_media_play, "Play Now", pendingPlay) // <--- The Magic Button
             .setAutoCancel(true)
+            // Add the Play Action Button
+            .addAction(android.R.drawable.ic_media_play, "Play Now", pendingPlay)
             .build()
 
         notificationManager.notify(locationId.hashCode(), notification)
