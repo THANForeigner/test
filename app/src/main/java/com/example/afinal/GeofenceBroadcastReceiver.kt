@@ -9,10 +9,14 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.example.afinal.MainActivity
-import com.example.afinal.R // Đảm bảo import R để lấy icon app
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -32,48 +36,86 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
             triggeringGeofences?.forEach { geofence ->
                 val locationId = geofence.requestId
-                // Gửi thông báo cho từng địa điểm kích hoạt
-                sendNotification(context, locationId)
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch{
+                    try{
+                        fetchAndNoify(context, locationId)
+                    }finally{
+                        pendingResult.finish()
+                    }
+                }
             }
         }
     }
 
-    private fun sendNotification(context: Context, locationId: String) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "student_stories_channel"
+    private suspend fun fetchAndNoify(context: Context, locationId: String){
+        val db = FirebaseFirestore.getInstance()
+        var docRef = db.collection("locations").document("locations").collection("indoor_locations").document(locationId)
+        var snapshot = docRef.get().await()
+        var postsQuery: Query? = null
+        var isIndoor: Boolean = false
+        if (snapshot.exists()){
+            postsQuery = docRef.collection("floor").document("1").collection("posts")
+            isIndoor = true
+        } else {
+            docRef = db.collection("locations").document("locations").collection("outdoor_locations").document(locationId)
+            postsQuery = docRef.collection("posts")
+        }
+        try {
+            val querySnapshot = postsQuery.get().await()
+            val storyDoc = if (isIndoor) {
+                querySnapshot.documents.firstOrNull()
+            } else {
+                querySnapshot.documents.firstOrNull { doc ->
+                    doc.reference.path.contains(locationId)
+                }
+            }
+            if (storyDoc != null) {
+                val title = storyDoc.getString("title") ?: "New Story Available"
+                val audioUrl = storyDoc.getString("audioURL") ?: ""
+                if(audioUrl.isNotEmpty()) sendNotificationWithPlay(context, locationId, title, audioUrl)
+            }
+        }catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
-        // 1. Tạo Notification Channel (Bắt buộc cho Android 8.0+)
+    private fun sendNotificationWithPlay(context: Context, locationId: String, title: String, audioUrl: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "story_alert_channel"
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Student Stories Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            )
+            val channel = NotificationChannel(channelId, "Story Alerts", NotificationManager.IMPORTANCE_HIGH)
             notificationManager.createNotificationChannel(channel)
         }
 
-        // 2. Tạo Intent để mở MainActivity khi bấm vào thông báo
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            // Truyền ID địa điểm qua extra để MainActivity xử lý
+        // 1. Intent to Open App (Clicking body)
+        val openAppIntent = Intent(context, MainActivity::class.java).apply {
             putExtra("notification_story_id", locationId)
         }
+        val pendingOpenApp = PendingIntent.getActivity(context, locationId.hashCode(), openAppIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        val pendingIntent = PendingIntent.getActivity(
+        // 2. Intent to Play Audio directly (Clicking "Play Now")
+        val playIntent = Intent(context, AudioPlayerService::class.java).apply {
+            action = AudioPlayerService.ACTION_PLAY
+            putExtra(AudioPlayerService.EXTRA_AUDIO_URL, audioUrl)
+            putExtra(AudioPlayerService.EXTRA_TITLE, title)
+        }
+        // Use standard PendingIntent.getService
+        val pendingPlay = PendingIntent.getService(
             context,
-            locationId.hashCode(), // RequestCode riêng biệt để không bị ghi đè
-            contentIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            locationId.hashCode(),
+            playIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 3. Xây dựng thông báo
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher_round) // Icon app của bạn
-            .setContentTitle("Bạn đang ở gần một địa điểm thú vị!")
-            .setContentText("Chạm để nghe câu chuyện tại $locationId") // Bạn có thể map ID sang tên thật nếu muốn phức tạp hơn
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true) // Bấm xong tự biến mất
+            .setSmallIcon(R.mipmap.ic_launcher_round)
+            .setContentTitle("Nearby: $title")
+            .setContentText("Tap 'Play' to listen while you walk!")
+            .setContentIntent(pendingOpenApp)
+            .addAction(android.R.drawable.ic_media_play, "Play Now", pendingPlay) // <--- The Magic Button
+            .setAutoCancel(true)
             .build()
 
         notificationManager.notify(locationId.hashCode(), notification)

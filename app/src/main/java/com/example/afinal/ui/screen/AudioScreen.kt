@@ -76,7 +76,7 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isIndoor) "Inside: $currentLocationId" else "Near: $currentLocationId",
+                                text = if (isIndoor) "Inside: $currentLocationId" else "Outdoor: $currentLocationId",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )

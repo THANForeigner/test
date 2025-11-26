@@ -78,4 +78,5 @@ dependencies {
     implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
     implementation("com.google.firebase:firebase-storage")
     implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
+    implementation("androidx.media:media:1.7.0")
 }

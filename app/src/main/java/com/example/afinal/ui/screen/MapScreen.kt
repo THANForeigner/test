@@ -94,7 +94,7 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
                     closestLoc = loc.id
                 }
             }
-            if (minDist < 20 && closestLoc != null) {
+            if (minDist < 50 && closestLoc != null) {
                 storyViewModel.fetchStoriesForLocation(closestLoc!!)
             } else {
                 storyViewModel.clearLocation()

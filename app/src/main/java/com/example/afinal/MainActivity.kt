@@ -39,8 +39,16 @@ class MainActivity : ComponentActivity() {
                             ) == PackageManager.PERMISSION_GRANTED
                         )
                     }
-
-                    // 2. Launcher for Background Permission (Run SECOND)
+                    var hasAllPermissions by remember {
+                        mutableStateOf(
+                            // Check Location
+                            (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) &&
+                                    // Check Notification (Only for Android 13+)
+                                    (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                                    } else true)
+                        )
+                    }
                     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission()
                     ) { isGranted ->
@@ -51,7 +59,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // 3. Launcher for Foreground Permissions (Run FIRST)
                     val foregroundPermissionLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestMultiplePermissions()
                     ) { permissions ->
@@ -73,8 +80,30 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    val permissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestMultiplePermissions()
+                    ) { permissions ->
+                        val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+                        val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            permissions[Manifest.permission.POST_NOTIFICATIONS] == true
+                        } else true
 
-                    // 4. Trigger the Request Flow on Startup
+                        hasAllPermissions = locationGranted && notificationGranted
+                    }
+                    LaunchedEffect(Unit) {
+                        if (!hasAllPermissions) {
+                            val permissionsToRequest = mutableListOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                            // Add Notification permission for Android 13+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+
+                            permissionLauncher.launch(permissionsToRequest.toTypedArray())
+                        }
+                    }
                     LaunchedEffect(Unit) {
                         val permissionsToRequest = mutableListOf<String>()
 

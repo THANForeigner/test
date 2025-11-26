@@ -118,6 +118,7 @@ class StoryViewModel : ViewModel() {
             query.get().addOnSuccessListener { snapshot ->
                 processSnapshot(snapshot.documents, locationId, isAllStories = false)
             }
+            setIndoorStatus(true)
         } else {
              query = db.collection("locations").document("locations")
                 .collection("outdoor_locations").document(locationId)
@@ -125,6 +126,7 @@ class StoryViewModel : ViewModel() {
             query.get().addOnSuccessListener { snapshot ->
                 processSnapshot(snapshot.documents, locationId, isAllStories = false)
             }
+            setIndoorStatus(false)
         }
     }
     private fun processSnapshot(
