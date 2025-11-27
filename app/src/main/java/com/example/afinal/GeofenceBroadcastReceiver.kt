@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage // Import this
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val geofencingEvent = GeofencingEvent.fromIntent(intent) ?: return
-        if (geofencingEvent.hasError()) return
+        if (geofencingEvent?.hasError() == true)return
 
         if (geofencingEvent.geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
             val triggeringGeofences = geofencingEvent.triggeringGeofences
@@ -43,31 +44,26 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     private suspend fun fetchAndNotify(context: Context, locationId: String) {
-        val db = FirebaseFirestore.getInstance()
-        val storage = FirebaseStorage.getInstance() // Initialize Storage
+        try { // <--- MOVE TRY BLOCK UP HERE
+            val db = FirebaseFirestore.getInstance()
+            var docRef = db.collection("locations").document("locations").collection("indoor_locations")
+                .document(locationId)
 
-        // 1. Check if it is an INDOOR location
-        val indoorRef = db.collection("locations").document("locations")
-            .collection("indoor_locations").document(locationId)
+            // Now this is safe
+            var snapshot = docRef.get().await()
 
-        val isIndoor = try {
-            val snapshot = indoorRef.get().await()
-            snapshot.exists()
-        } catch (e: Exception) {
-            false
-        }
+            var postsQuery: Query? = null
+            var isIndoor: Boolean = false
+            if (snapshot.exists()) {
+                postsQuery = docRef.collection("floor").document("1").collection("posts")
+                isIndoor = true
+            } else {
+                docRef = db.collection("locations").document("locations").collection("outdoor_locations")
+                    .document(locationId)
+                postsQuery = docRef.collection("posts")
+            }
 
-        // 2. Define the Query
-        val postsQuery = if (isIndoor) {
-            indoorRef.collection("floor").document("1").collection("posts")
-        } else {
-            db.collectionGroup("posts")
-        }
-
-        try {
             val querySnapshot = postsQuery.get().await()
-
-            // 3. Find the document
             val storyDoc = if (isIndoor) {
                 querySnapshot.documents.firstOrNull()
             } else {
@@ -75,35 +71,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     doc.reference.path.contains(locationId)
                 }
             }
-
             if (storyDoc != null) {
                 val title = storyDoc.getString("title") ?: "New Story Available"
-                val rawAudioUrl = storyDoc.getString("audioURL") ?: ""
-                val user = storyDoc.getString("user") ?: "Student Stories"
-
-                if (rawAudioUrl.isNotEmpty()) {
-                    // --- FIX STARTS HERE ---
-                    // Convert gs:// to https:// if necessary
-                    val playableUrl = if (rawAudioUrl.startsWith("gs://")) {
-                        try {
-                            // Fetch the download URL from Firebase Storage
-                            storage.getReferenceFromUrl(rawAudioUrl).downloadUrl.await().toString()
-                        } catch (e: Exception) {
-                            Log.e("GeofenceReceiver", "Error resolving storage URL", e)
-                            null
-                        }
-                    } else {
-                        rawAudioUrl
-                    }
-
-                    // Only send notification if we have a valid playable URL
-                    if (playableUrl != null) {
-                        sendNotificationWithPlay(context, locationId, title, playableUrl, user)
-                    }
-                    // --- FIX ENDS HERE ---
-                }
+                val user = storyDoc.getString("user") ?: "Unknown User"
+                val audioUrl = storyDoc.getString("audioURL") ?: ""
+                if (audioUrl.isNotEmpty()) sendNotificationWithPlay(
+                    context,
+                    locationId,
+                    title,
+                    audioUrl,
+                    user
+                )
             }
         } catch (e: Exception) {
+            Log.e("GeofenceReceiver", "Error fetching story", e)
             e.printStackTrace()
         }
     }

@@ -10,6 +10,7 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
 import android.support.v4.media.session.MediaSessionCompat
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class AudioPlayerService : Service() {
@@ -68,8 +69,12 @@ class AudioPlayerService : Service() {
         mediaPlayer?.release()
 
         mediaPlayer = MediaPlayer().apply {
-            setDataSource(url)
-            prepareAsync() // Prepare in background
+            try {
+                setDataSource(url)
+                prepareAsync()
+            } catch (e: Exception) {
+                Log.e("AudioPlayerService", "Error setting data source", e)
+            }
             setOnPreparedListener {
                 start()
                 this@AudioPlayerService.isPlaying = true
