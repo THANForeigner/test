@@ -22,20 +22,36 @@ import kotlinx.coroutines.tasks.await // Import this for await()
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val geofencingEvent = GeofencingEvent.fromIntent(intent) ?: return
-        if (geofencingEvent?.hasError() == true)return
+        val geofencingEvent = GeofencingEvent.fromIntent(intent)
 
-        if (geofencingEvent.geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
+        if (geofencingEvent?.hasError() == true) {
+            Log.e("GeofenceReceiver", "Geofence Error: ${geofencingEvent.errorCode}")
+            return
+        }
+
+        val geofenceTransition = geofencingEvent?.geofenceTransition
+
+        // Check for ENTER transition
+        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
             val triggeringGeofences = geofencingEvent.triggeringGeofences
-            triggeringGeofences?.forEach { geofence ->
-                val locationId = geofence.requestId
 
-                // Keep receiver alive for async work
+            if (!triggeringGeofences.isNullOrEmpty()) {
+                // 1. Call goAsync() EXACTLY ONCE here, outside the loop
                 val pendingResult = goAsync()
+
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        fetchAndNotify(context, locationId)
+                        // 2. Loop through all fences inside the single coroutine
+                        triggeringGeofences.forEach { geofence ->
+                            val locationId = geofence.requestId
+                            try {
+                                fetchAndNotify(context, locationId)
+                            } catch (e: Exception) {
+                                Log.e("GeofenceReceiver", "Error handling $locationId", e)
+                            }
+                        }
                     } finally {
+                        // 3. Finish EXACTLY ONCE here
                         pendingResult.finish()
                     }
                 }
@@ -44,6 +60,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     private suspend fun fetchAndNotify(context: Context, locationId: String) {
+
         try { // <--- MOVE TRY BLOCK UP HERE
             val db = FirebaseFirestore.getInstance()
             var docRef = db.collection("locations").document("locations").collection("indoor_locations")
@@ -90,6 +107,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     private fun sendNotificationWithPlay(context: Context, locationId: String, title: String, audioUrl: String, user: String) {
+//        if (MainActivity.isAppInForeground) {
+//            return
+//        }
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "story_alert_channel"
 

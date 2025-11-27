@@ -20,6 +20,22 @@ import com.example.afinal.navigation.AppNavigation
 import com.example.afinal.ui.theme.FINALTheme
 
 class MainActivity : ComponentActivity() {
+//    companion object {
+//        var isAppInForeground = false
+//    }
+//
+//    // 2. OVERRIDE onResume (Set to true)
+//    override fun onResume() {
+//        super.onResume()
+//        isAppInForeground = true
+//    }
+//
+//    // 3. OVERRIDE onPause (Set to false)
+//    override fun onPause() {
+//        super.onPause()
+//        isAppInForeground = false
+//    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
