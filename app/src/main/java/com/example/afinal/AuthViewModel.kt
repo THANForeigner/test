@@ -28,4 +28,8 @@ class AuthViewModel : ViewModel() {
             false
         }
     }
+
+    fun logout() {
+        auth.signOut()
+    }
 }

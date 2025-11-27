@@ -22,6 +22,7 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
+import androidx.compose.runtime.remember
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -73,7 +74,7 @@ fun HomeScreen(navController: NavController) {
                     )
                 ) {
                     Marker(
-                        state = MarkerState(position = locationLatLng),
+                        state = remember { MarkerState(position = locationLatLng) },
                         title = featuredStory?.locationName ?: "Vị trí của bạn",
                         snippet = "Bạn đang ở đây"
                     )

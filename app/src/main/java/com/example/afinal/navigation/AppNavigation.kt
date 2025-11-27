@@ -25,6 +25,7 @@ import com.example.afinal.ui.screen.*
 import com.example.afinal.ui.theme.FINALTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.afinal.StoryViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 object Routes {
     const val LOGIN = "login"
@@ -43,12 +44,19 @@ object Routes {
 fun AppNavigation(startIntent: Intent? = null) {
     val navController = rememberNavController()
     val notificationStoryId = startIntent?.getStringExtra("notification_story_id")
-    val startDest = if (notificationStoryId != null) {
-        // Nếu có ID, ta sẽ xử lý navigate ở trong LaunchedEffect bên dưới
+
+    val appStartDestination = if (FirebaseAuth.getInstance().currentUser != null) {
         Routes.MAIN_APP
     } else {
         Routes.LOGIN
     }
+
+    val finalStartDestination = if (notificationStoryId != null) {
+        Routes.MAIN_APP // Always go to main app if there's a notification to handle
+    } else {
+        appStartDestination
+    }
+
     LaunchedEffect(notificationStoryId) {
         if (notificationStoryId != null) {
             // Mở thẳng vào Main App rồi vào Player
@@ -56,7 +64,7 @@ fun AppNavigation(startIntent: Intent? = null) {
             navController.navigate("${Routes.AUDIO_PLAYER}/$notificationStoryId")
         }
     }
-    NavHost(navController = navController, startDestination = Routes.LOGIN) {
+    NavHost(navController = navController, startDestination = finalStartDestination) {
         composable(Routes.LOGIN) {
             LoginScreen(navController = navController)
         }
