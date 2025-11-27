@@ -17,7 +17,6 @@ class LocationGPS(val context: Context){
     private val _fusedLocationClient: FusedLocationProviderClient
     = LocationServices.getFusedLocationProviderClient(context)
 
-    @SuppressLint
     fun requestLocationUpdate(viewModel: LocationViewModel){
         val locationCallback = object : LocationCallback(){
             override fun onLocationResult(locationResult: LocationResult) {
@@ -29,7 +28,10 @@ class LocationGPS(val context: Context){
             }
         }
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000).build()
-        _fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        if (hasLocationPermission(context)) {
+            @SuppressLint("MissingPermission")
+            _fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        }
     }
     fun hasLocationPermission(context: Context): Boolean{
         return ContextCompat.checkSelfPermission(context,
