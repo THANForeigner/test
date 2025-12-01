@@ -110,7 +110,7 @@ fun MainAppScreen(mainNavController: NavHostController) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Routes.HOME) { HomeScreen(navController = mainNavController) }
-            composable(Routes.MAP) { MapScreen(navController = mainNavController,storyViewModel = storyViewModel) }
+            composable(Routes.MAP) { MapScreen(navController = bottomNavController, storyViewModel = storyViewModel) }
             composable(Routes.AUDIOS) { AudiosScreen(navController = mainNavController, storyViewModel = storyViewModel) }
             composable(Routes.USER) { UserScreen(mainNavController = bottomNavController) }
             composable(Routes.BAROMETER) { BarometerScreen() }
