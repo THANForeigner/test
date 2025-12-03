@@ -65,7 +65,7 @@ fun AppNavigation(
 
     LaunchedEffect(notificationStoryId) {
         if (notificationStoryId != null) {
-            // Mở thẳng vào Main App rồi vào Player
+            // Open Main App then Player
             navController.navigate(Routes.MAIN_APP)
             navController.navigate("${Routes.AUDIO_PLAYER}/$notificationStoryId")
         }
@@ -81,13 +81,13 @@ fun AppNavigation(
             MainAppScreen(mainNavController = navController, locationViewModel = locationViewModel, storyViewModel = storyViewModel)
         }
         composable(Routes.ADD_POST) {
+            // Ensure AddPostScreen also accepts locationViewModel if required by your previous edits
             AddPostScreen(navController = navController, locationViewModel = locationViewModel, storyViewModel = storyViewModel)
         }
         composable(
             route = "${Routes.AUDIO_PLAYER}/{${Routes.ARG_STORY_ID}}",
             arguments = listOf(navArgument(Routes.ARG_STORY_ID) { type = NavType.StringType })
         ) { backStackEntry ->
-            // Lấy storyId từ route
             val storyId = backStackEntry.arguments?.getString(Routes.ARG_STORY_ID)
             if (storyId != null) {
                 AudioPlayerScreen(
@@ -95,7 +95,6 @@ fun AppNavigation(
                     storyId = storyId
                 )
             } else {
-                // Xử lý lỗi (ví dụ: quay lại)
                 navController.popBackStack()
             }
         }
@@ -106,7 +105,7 @@ fun AppNavigation(
 @Composable
 fun MainAppScreen(mainNavController: NavHostController, locationViewModel: LocationViewModel, storyViewModel: StoryViewModel) {
     val bottomNavController = rememberNavController()
-    // val storyViewModel: StoryViewModel = viewModel() // This is now passed from above
+
     Scaffold(
         bottomBar = {
             BottomNavigationBar(navController = bottomNavController)
@@ -118,9 +117,22 @@ fun MainAppScreen(mainNavController: NavHostController, locationViewModel: Locat
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Routes.HOME) { HomeScreen(navController = mainNavController) }
-            composable(Routes.MAP) { MapScreen(navController = bottomNavController, storyViewModel = storyViewModel) }
-            composable(Routes.AUDIOS) { AudiosScreen(navController = mainNavController, storyViewModel = storyViewModel) }
-            composable(Routes.USER) { UserScreen(mainNavController = bottomNavController) }
+
+            // MapScreen: signature unchanged in previous steps
+            composable(Routes.MAP) {
+                MapScreen(navController = bottomNavController, storyViewModel = storyViewModel)
+            }
+
+            // FIX: AudiosScreen now requires locationViewModel to track realtime GPS
+            composable(Routes.AUDIOS) {
+                AudiosScreen(
+                    navController = mainNavController,
+                    storyViewModel = storyViewModel,
+                    locationViewModel = locationViewModel
+                )
+            }
+
+            composable(Routes.USER) { UserScreen(mainNavController = mainNavController) } // Updated to mainNavController for better Logout handling
             composable(Routes.BAROMETER) { BarometerScreen() }
         }
     }
@@ -147,15 +159,10 @@ fun BottomNavigationBar(navController: NavController) {
                 selected = currentRoute == item.route,
                 onClick = {
                     navController.navigate(item.route) {
-                        // Pop up to the start destination of the graph to
-                        // avoid building up a large stack of destinations
-                        // on the back stack as users select items
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true
                         }
-                        // Avoid re-launching the same screen
                         launchSingleTop = true
-                        // Restore state when re-selecting a previously selected item
                         restoreState = true
                     }
                 }

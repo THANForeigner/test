@@ -1,5 +1,6 @@
 package com.example.afinal.ui.screen
 
+import android.location.Location
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,29 +12,95 @@ import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.afinal.LocationViewModel
 import com.example.afinal.StoryViewModel
 import com.example.afinal.navigation.Routes
+import com.example.afinal.utils.IndoorDetector
 
 @Composable
-fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
-
+fun AudiosScreen(
+    navController: NavController,
+    storyViewModel: StoryViewModel,
+    locationViewModel: LocationViewModel
+) {
+    val context = LocalContext.current
     val currentLocationId by storyViewModel.currentLocationId
     val currentLocation by storyViewModel.currentLocation
     val isIndoor by storyViewModel.isIndoor
     val currentFloor by storyViewModel.currentFloor
     val currentStories by storyViewModel.currentStories
+    val userLocation by locationViewModel.location
+    val allLocations by storyViewModel.locations
+    val indoorDetector = remember { IndoorDetector(context) }
+    val isUserIndoor by indoorDetector.observeIndoorStatus().collectAsState(initial = false)
+
+    //MAIN LOGIC: Pinning & Tracking
+    LaunchedEffect(userLocation, allLocations, isUserIndoor) {
+        val userLoc = userLocation
+
+        // Safety check: ensure we have data
+        if (userLoc != null && allLocations.isNotEmpty()) {
+
+            // Check if we are currently pinned to a valid indoor location
+            val isCurrentlyInsideBuilding = currentLocationId != null &&
+                    allLocations.find { it.id == currentLocationId }?.type == "indoor"
+
+            if (isUserIndoor && isCurrentlyInsideBuilding) {
+                return@LaunchedEffect
+            }
+
+            // LIVE TRACKING (Outdoor OR Searching for Building) ---
+
+            // Define what we are looking for
+            val candidates = if (isUserIndoor) {
+                // If Indoor but NOT yet selected: Look for closest Building
+                allLocations.filter { it.type == "indoor" }
+            } else {
+                // If Outdoor: Look for Everything (Regain full tracking)
+                allLocations
+            }
+
+            // Find closest
+            val closestPair = candidates.map { loc ->
+                val results = FloatArray(1)
+                Location.distanceBetween(
+                    userLoc.latitude, userLoc.longitude,
+                    loc.latitude, loc.longitude,
+                    results
+                )
+                loc to results[0]
+            }.minByOrNull { it.second }
+
+            // Threshold Check (30 meters)
+            if (closestPair != null && closestPair.second < 10.0) {
+                val foundLocation = closestPair.first
+
+                // Enter the location
+                if (foundLocation.id != currentLocationId) {
+                    storyViewModel.fetchStoriesForLocation(foundLocation.id)
+                }
+            } else {
+                // Exit condition: Only clear if we are NOT pinned
+                // (We already handled the Pinned case at the top, so if we reach here, we are free to clear)
+                if (currentLocationId != null) {
+                    storyViewModel.clearLocation()
+                }
+            }
+        }
+    }
+
+    // Update StoryViewModel with the Sensor Status
+    LaunchedEffect(isUserIndoor) {
+        storyViewModel.setIndoorStatus(isUserIndoor)
+    }
 
     // Logic: Show Floor Button IF (Sensor says Indoor AND Building supports Floors)
     val showFloorButton = isIndoor && (currentLocation?.type == "indoor")
@@ -42,16 +109,16 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // 1. Header
+            // Header
             Text(
                 text = "Stories",
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(16.dp)
             )
 
-            // 2. Content Area
+            // Content Area
             if (currentLocationId == null) {
-                // LOCKED STATE: User is not near any location
+                // LOCKED STATE
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -59,11 +126,18 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Landscape, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Go to a location to see stories", style = MaterialTheme.typography.titleMedium, color = Color.Gray)
+                        Text(
+                            text = if (isUserIndoor) "Locating nearest building..." else "Exploring nearby...",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.Gray
+                        )
+                        if (isUserIndoor) {
+                            Text("(Indoor Mode)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        }
                     }
                 }
             } else {
-                // UNLOCKED STATE: User is near a location
+                // UNLOCKED STATE
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -76,11 +150,21 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
                                 contentDescription = null
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isIndoor) "Inside: $currentLocationId" else "Outdoor: $currentLocationId",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = if (isIndoor) "Inside: $currentLocationId" else "Outdoor: $currentLocationId",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                // Feedback for user
+                                if (isIndoor && isUserIndoor) {
+                                    Text(
+                                        text = "Location Pinned (GPS ignored)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
                         }
 
                         if (isIndoor && showFloorButton) {
@@ -131,8 +215,7 @@ fun AudiosScreen(navController: NavController, storyViewModel: StoryViewModel) {
             Icon(Icons.Default.Add, contentDescription = "Add Post")
         }
 
-        // --- Floor Button (Bottom Right) ---
-        // Only show if we are inside an indoor location
+        // Floor Button
         if (currentLocationId != null && showFloorButton) {
             Box(
                 modifier = Modifier

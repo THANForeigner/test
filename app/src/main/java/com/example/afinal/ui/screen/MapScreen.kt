@@ -34,8 +34,7 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
     val locationViewModel: LocationViewModel = viewModel()
 
     val locations by storyViewModel.locations
-    val myLocation = locationViewModel.location.value
-
+    val myLocation = locationViewModel.location.value // Live User Location
 
     val myLocationUtils = remember { LocationGPS(context) }
     val indoorDetector = remember { IndoorDetector(context) }
@@ -72,8 +71,6 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
     }
 
     // 2. Indoor Detection Flow
-    // We assume that if SNR is low -> Indoor.
-    // We only care if we are also NEAR a building.
     LaunchedEffect(Unit) {
         if (hasForegroundPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             indoorDetector.observeIndoorStatus().collect { isIndoor ->
@@ -82,6 +79,7 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
         }
     }
 
+    // 3. Distance Check Logic
     LaunchedEffect(myLocation, locations, hasBackgroundPermission) {
         if (locations.isNotEmpty() && myLocation != null) {
             val results = FloatArray(1)
@@ -121,22 +119,28 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
             cameraPositionState = cameraPositionState,
             properties = MapProperties(isMyLocationEnabled = hasForegroundPermission)
         ) {
-            locations.forEach { loc ->
+            // [CHANGE 1] Added User Circle (Radius 10m)
+            // This follows the user's live position
+            myLocation?.let { userLoc ->
                 Circle(
-                    center = LatLng(loc.latitude, loc.longitude),
-                    radius = 10.0,
-                    fillColor = Color(0x44FF0000),
-                    strokeColor = Color.Red,
+                    center = LatLng(userLoc.latitude, userLoc.longitude),
+                    radius = 10.0, // Requested 10m radius
+                    fillColor = Color(0x220000FF), // Light Blue transparent fill
+                    strokeColor = Color.Blue,      // Solid Blue border
                     strokeWidth = 2f
                 )
+            }
+
+            // [CHANGE 2] Loop through locations but REMOVED the static geofence circles
+            locations.forEach { loc ->
+                // REMOVED: Circle(...)
+
                 Marker(
                     state = MarkerState(position = LatLng(loc.latitude, loc.longitude)),
                     title = loc.locationName,
                     snippet = "Tap to see ${loc.type} stories",
                     onClick = {
-                        // Load data for this location
                         storyViewModel.fetchStoriesForLocation(loc.id)
-                        // Navigate to List Screen (AudioScreen) instead of Player
                         navController.navigate(Routes.AUDIOS)
                         false
                     }
