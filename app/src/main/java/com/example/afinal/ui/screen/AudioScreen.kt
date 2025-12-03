@@ -1,6 +1,5 @@
 package com.example.afinal.ui.screen
 
-import android.location.Location
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,10 +19,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.afinal.LocationViewModel
-import com.example.afinal.StoryViewModel
+import com.example.afinal.models.LocationViewModel
+import com.example.afinal.models.StoryViewModel
 import com.example.afinal.navigation.Routes
-import com.example.afinal.utils.IndoorDetector
+import com.example.afinal.ultis.IndoorDetector
+import com.example.afinal.ultis.FetchAudio
 
 @Composable
 fun AudiosScreen(
@@ -32,6 +32,8 @@ fun AudiosScreen(
     locationViewModel: LocationViewModel
 ) {
     val context = LocalContext.current
+
+    // 1. Collect State
     val currentLocationId by storyViewModel.currentLocationId
     val currentLocation by storyViewModel.currentLocation
     val isIndoor by storyViewModel.isIndoor
@@ -39,70 +41,25 @@ fun AudiosScreen(
     val currentStories by storyViewModel.currentStories
     val userLocation by locationViewModel.location
     val allLocations by storyViewModel.locations
+
     val indoorDetector = remember { IndoorDetector(context) }
     val isUserIndoor by indoorDetector.observeIndoorStatus().collectAsState(initial = false)
 
-    //MAIN LOGIC: Pinning & Tracking
-    LaunchedEffect(userLocation, allLocations, isUserIndoor) {
-        val userLoc = userLocation
-
-        // Safety check: ensure we have data
-        if (userLoc != null && allLocations.isNotEmpty()) {
-
-            // Check if we are currently pinned to a valid indoor location
-            val isCurrentlyInsideBuilding = currentLocationId != null &&
-                    allLocations.find { it.id == currentLocationId }?.type == "indoor"
-
-            if (isUserIndoor && isCurrentlyInsideBuilding) {
-                return@LaunchedEffect
-            }
-
-            // LIVE TRACKING (Outdoor OR Searching for Building) ---
-
-            // Define what we are looking for
-            val candidates = if (isUserIndoor) {
-                // If Indoor but NOT yet selected: Look for closest Building
-                allLocations.filter { it.type == "indoor" }
-            } else {
-                // If Outdoor: Look for Everything (Regain full tracking)
-                allLocations
-            }
-
-            // Find closest
-            val closestPair = candidates.map { loc ->
-                val results = FloatArray(1)
-                Location.distanceBetween(
-                    userLoc.latitude, userLoc.longitude,
-                    loc.latitude, loc.longitude,
-                    results
-                )
-                loc to results[0]
-            }.minByOrNull { it.second }
-
-            // Threshold Check (30 meters)
-            if (closestPair != null && closestPair.second < 10.0) {
-                val foundLocation = closestPair.first
-
-                // Enter the location
-                if (foundLocation.id != currentLocationId) {
-                    storyViewModel.fetchStoriesForLocation(foundLocation.id)
-                }
-            } else {
-                // Exit condition: Only clear if we are NOT pinned
-                // (We already handled the Pinned case at the top, so if we reach here, we are free to clear)
-                if (currentLocationId != null) {
-                    storyViewModel.clearLocation()
-                }
-            }
-        }
-    }
+    // 2. Delegate Logic to FetchAudio
+    FetchAudio(
+        userLocation = userLocation,
+        allLocations = allLocations,
+        isUserIndoor = isUserIndoor,
+        currentLocationId = currentLocationId,
+        storyViewModel = storyViewModel
+    )
 
     // Update StoryViewModel with the Sensor Status
     LaunchedEffect(isUserIndoor) {
         storyViewModel.setIndoorStatus(isUserIndoor)
     }
 
-    // Logic: Show Floor Button IF (Sensor says Indoor AND Building supports Floors)
+    // 3. UI Layout
     val showFloorButton = isIndoor && (currentLocation?.type == "indoor")
     var showFloorMenu by remember { mutableStateOf(false) }
 

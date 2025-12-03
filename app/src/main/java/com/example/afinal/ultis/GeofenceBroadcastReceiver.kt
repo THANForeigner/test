@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.ultis
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,11 +9,13 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.afinal.logic.AudioPlayerService
+import com.example.afinal.logic.MainActivity
+import com.example.afinal.R
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.storage.FirebaseStorage // Import this
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -131,10 +133,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         // Intent 2: Play Audio Service
         val playIntent = Intent(context, AudioPlayerService::class.java).apply {
-            action = AudioPlayerService.ACTION_PLAY
-            putExtra(AudioPlayerService.EXTRA_AUDIO_URL, audioUrl) // This is now a valid HTTP URL
-            putExtra(AudioPlayerService.EXTRA_TITLE, title)
-            putExtra(AudioPlayerService.EXTRA_USER, user)
+            action = AudioPlayerService.Companion.ACTION_PLAY
+            putExtra(AudioPlayerService.Companion.EXTRA_AUDIO_URL, audioUrl) // This is now a valid HTTP URL
+            putExtra(AudioPlayerService.Companion.EXTRA_TITLE, title)
+            putExtra(AudioPlayerService.Companion.EXTRA_USER, user)
         }
         val pendingPlay = PendingIntent.getService(
             context,

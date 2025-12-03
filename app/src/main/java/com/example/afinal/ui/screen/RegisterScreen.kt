@@ -18,7 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.afinal.AuthViewModel
+import com.example.afinal.models.AuthViewModel
 import com.example.afinal.navigation.Routes
 import kotlinx.coroutines.launch
 

@@ -24,7 +24,7 @@
             android:value="AIzaSyAJkuSss7cUtv-OfVZW3f4dEzo1Bk8XIjM"/>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".logic.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.FINAL">
@@ -35,11 +35,11 @@
             </intent-filter>
         </activity>
         <receiver
-            android:name=".GeofenceBroadcastReceiver"
+            android:name=".ultis.GeofenceBroadcastReceiver"
             android:exported="true"
             android:enabled="true" />
         <service
-            android:name=".AudioPlayerService"
+            android:name=".logic.AudioPlayerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />

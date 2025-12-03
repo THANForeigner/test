@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.logic
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.example.afinal.data.LocationData
+import com.example.afinal.models.LocationViewModel
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest

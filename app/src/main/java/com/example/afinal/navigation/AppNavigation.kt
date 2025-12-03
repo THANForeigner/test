@@ -24,8 +24,9 @@ import androidx.navigation.navArgument
 import com.example.afinal.ui.screen.*
 import com.example.afinal.ui.theme.FINALTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.afinal.LocationViewModel
-import com.example.afinal.StoryViewModel
+// Fixed imports (removed .models)
+import com.example.afinal.models.LocationViewModel
+import com.example.afinal.models.StoryViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 object Routes {
@@ -37,7 +38,7 @@ object Routes {
     const val AUDIOS = "audios"
     const val USER = "user"
     const val BAROMETER = "barometer"
-    const val  AUDIO_PLAYER = "audio_player"
+    const val AUDIO_PLAYER = "audio_player"
     const val ARG_STORY_ID = "storyID"
     const val ADD_POST = "add_post"
 }
@@ -49,8 +50,10 @@ fun AppNavigation(
     storyViewModel: StoryViewModel
 ) {
     val navController = rememberNavController()
+    // This key must match the one used in AudioPlayerService.sendDiscoveryNotification
     val notificationStoryId = startIntent?.getStringExtra("notification_story_id")
 
+    // Determine where to start based on Auth and Notifications
     val appStartDestination = if (FirebaseAuth.getInstance().currentUser != null) {
         Routes.MAIN_APP
     } else {
@@ -58,18 +61,22 @@ fun AppNavigation(
     }
 
     val finalStartDestination = if (notificationStoryId != null) {
-        Routes.MAIN_APP // Always go to main app if there's a notification to handle
+        Routes.MAIN_APP // If notification exists, load Main App first so back stack is correct
     } else {
         appStartDestination
     }
 
+    // Handle Deep Link from Notification
     LaunchedEffect(notificationStoryId) {
         if (notificationStoryId != null) {
-            // Open Main App then Player
-            navController.navigate(Routes.MAIN_APP)
+            // Ensure we are in the main app, then push the player on top
+            navController.navigate(Routes.MAIN_APP) {
+                popUpTo(Routes.MAIN_APP) { inclusive = true }
+            }
             navController.navigate("${Routes.AUDIO_PLAYER}/$notificationStoryId")
         }
     }
+
     NavHost(navController = navController, startDestination = finalStartDestination) {
         composable(Routes.LOGIN) {
             LoginScreen(navController = navController)
@@ -78,11 +85,18 @@ fun AppNavigation(
             RegisterScreen(navController = navController)
         }
         composable(Routes.MAIN_APP) {
-            MainAppScreen(mainNavController = navController, locationViewModel = locationViewModel, storyViewModel = storyViewModel)
+            MainAppScreen(
+                mainNavController = navController,
+                locationViewModel = locationViewModel,
+                storyViewModel = storyViewModel
+            )
         }
         composable(Routes.ADD_POST) {
-            // Ensure AddPostScreen also accepts locationViewModel if required by your previous edits
-            AddPostScreen(navController = navController, locationViewModel = locationViewModel, storyViewModel = storyViewModel)
+            AddPostScreen(
+                navController = navController,
+                locationViewModel = locationViewModel,
+                storyViewModel = storyViewModel
+            )
         }
         composable(
             route = "${Routes.AUDIO_PLAYER}/{${Routes.ARG_STORY_ID}}",
@@ -103,7 +117,11 @@ fun AppNavigation(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScreen(mainNavController: NavHostController, locationViewModel: LocationViewModel, storyViewModel: StoryViewModel) {
+fun MainAppScreen(
+    mainNavController: NavHostController,
+    locationViewModel: LocationViewModel,
+    storyViewModel: StoryViewModel
+) {
     val bottomNavController = rememberNavController()
 
     Scaffold(
@@ -118,12 +136,11 @@ fun MainAppScreen(mainNavController: NavHostController, locationViewModel: Locat
         ) {
             composable(Routes.HOME) { HomeScreen(navController = mainNavController) }
 
-            // MapScreen: signature unchanged in previous steps
             composable(Routes.MAP) {
                 MapScreen(navController = bottomNavController, storyViewModel = storyViewModel)
             }
 
-            // FIX: AudiosScreen now requires locationViewModel to track realtime GPS
+            // Updated to pass locationViewModel as required by the new logic
             composable(Routes.AUDIOS) {
                 AudiosScreen(
                     navController = mainNavController,
@@ -132,7 +149,7 @@ fun MainAppScreen(mainNavController: NavHostController, locationViewModel: Locat
                 )
             }
 
-            composable(Routes.USER) { UserScreen(mainNavController = mainNavController) } // Updated to mainNavController for better Logout handling
+            composable(Routes.USER) { UserScreen(mainNavController = mainNavController) }
             composable(Routes.BAROMETER) { BarometerScreen() }
         }
     }
@@ -177,6 +194,10 @@ data class BottomNavItem(val title: String, val route: String, val icon: ImageVe
 @Composable
 fun PreviewMainAppScreen() {
     FINALTheme() {
-        MainAppScreen(mainNavController = rememberNavController(), locationViewModel = viewModel(), storyViewModel = viewModel())
+        MainAppScreen(
+            mainNavController = rememberNavController(),
+            locationViewModel = viewModel(),
+            storyViewModel = viewModel()
+        )
     }
 }

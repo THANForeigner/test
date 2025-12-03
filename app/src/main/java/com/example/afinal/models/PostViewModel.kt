@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.models
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel

@@ -1,8 +1,9 @@
-package com.example.afinal
+package com.example.afinal.models
 
 import androidx.lifecycle.ViewModel
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
+import com.example.afinal.data.LocationData
 
 class LocationViewModel: ViewModel(){
     private val _location = mutableStateOf<LocationData?>(null)

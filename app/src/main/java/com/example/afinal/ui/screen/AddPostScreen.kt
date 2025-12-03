@@ -17,9 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.afinal.LocationViewModel
-import com.example.afinal.PostViewModel
-import com.example.afinal.StoryViewModel
+import com.example.afinal.models.LocationViewModel
+import com.example.afinal.models.PostViewModel
+import com.example.afinal.models.StoryViewModel
 import com.example.afinal.data.model.Position
 import com.example.afinal.data.model.PostModel
 import com.google.firebase.auth.ktx.auth

@@ -1,4 +1,4 @@
-package com.example.afinal.utils
+package com.example.afinal.ultis
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -7,8 +7,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import com.example.afinal.data.model.LocationModel
-import com.example.afinal.GeofenceBroadcastReceiver
+import com.example.afinal.models.LocationModel
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingRequest

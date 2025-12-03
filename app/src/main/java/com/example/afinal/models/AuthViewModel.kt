@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.models
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth

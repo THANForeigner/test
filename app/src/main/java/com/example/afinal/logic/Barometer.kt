@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.logic
 
 import android.content.Context
 import android.hardware.Sensor

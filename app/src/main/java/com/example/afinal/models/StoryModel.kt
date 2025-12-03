@@ -1,5 +1,6 @@
-package com.example.afinal.data.model
+package com.example.afinal.models
 
+import com.example.afinal.data.model.Position
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.PropertyName
 

@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.logic
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -20,7 +20,8 @@ import androidx.activity.viewModels
 import com.example.afinal.navigation.AppNavigation
 import com.example.afinal.ui.theme.FINALTheme
 
-import com.example.afinal.StoryViewModel
+import com.example.afinal.models.LocationViewModel
+import com.example.afinal.models.StoryViewModel
 
 class MainActivity : ComponentActivity() {
 //    companion object {

@@ -1,4 +1,4 @@
-package com.example.afinal
+package com.example.afinal.models
 
 import android.util.Log
 import androidx.compose.runtime.State
@@ -6,12 +6,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.afinal.data.model.LocationModel
-import com.example.afinal.data.model.StoryModel
+import com.example.afinal.models.StoryModel
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlin.collections.iterator
 
 class StoryViewModel : ViewModel() {
     private val _locations = mutableStateOf<List<LocationModel>>(emptyList())
@@ -141,7 +142,7 @@ class StoryViewModel : ViewModel() {
         setIndoorStatus(locationType == "indoor")
     }
     private fun processSnapshot(
-        documents: List<com.google.firebase.firestore.DocumentSnapshot>,
+        documents: List<DocumentSnapshot>,
         locationId: String?,
         isAllStories: Boolean
     ) {
