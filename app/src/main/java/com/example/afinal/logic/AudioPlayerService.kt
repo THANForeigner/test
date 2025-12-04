@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.MediaPlayer
+import android.os.Binder // Import Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
@@ -21,16 +22,30 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 class AudioPlayerService : Service() {
 
+    // --- Binder for UI Communication ---
+    private val binder = LocalBinder()
+
+    inner class LocalBinder : Binder() {
+        fun getService(): AudioPlayerService = this@AudioPlayerService
+    }
+
+    override fun onBind(intent: Intent?): IBinder {
+        return binder
+    }
+
     // --- Audio Components ---
     private var mediaPlayer: MediaPlayer? = null
-    private var isPlaying = false
+    var isPlaying = false // Allow reading from outside, setting only internal
+        private set
     private lateinit var mediaSession: MediaSessionCompat
 
+    // Track what is currently playing to avoid restarting
+    var currentAudioUrl: String? = null
+        private set
     // --- Location Components ---
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private val allLocations = mutableListOf<LocationModel>()
-    private var lastDiscoveredLocationId: String? = null
 
     // Track Notification State
     private var currentTitle: String = "Waiting for location..."
@@ -40,7 +55,7 @@ class AudioPlayerService : Service() {
     companion object {
         const val ACTION_PLAY = "ACTION_PLAY"
         const val ACTION_PAUSE = "ACTION_PAUSE"
-        const val ACTION_START_TRACKING = "ACTION_START_TRACKING" // New Action
+        const val ACTION_START_TRACKING = "ACTION_START_TRACKING"
 
         const val EXTRA_AUDIO_URL = "EXTRA_AUDIO_URL"
         const val EXTRA_TITLE = "EXTRA_TITLE"
@@ -56,16 +71,13 @@ class AudioPlayerService : Service() {
         mediaSession = MediaSessionCompat(this, "AudioPlayerService")
         mediaSession.isActive = true
 
-        // Initialize Location Client
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Define what happens when location changes
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 val location = locationResult.lastLocation ?: return
-
-                // 1. Calculate Distance using the separate file
+                // Calculate Distance logic here (omitted for brevity, keep your existing logic)
                 val nearest = DistanceCalculator.findNearestLocation(
                     location.latitude,
                     location.longitude,
@@ -73,12 +85,73 @@ class AudioPlayerService : Service() {
                 )
             }
         }
-
-        // Fetch locations immediately so the service knows what to look for
         fetchLocationsFromFirestore()
     }
 
+    // --- Public Methods for UI ---
+
+    fun updateMetadata(title: String, user: String, location: String) {
+        currentTitle = title
+        currentUser = user
+        currentLocationName = location
+        showPlayerNotification(isPlaying)
+    }
+
+    fun seekTo(position: Int) {
+        mediaPlayer?.seekTo(position)
+    }
+
+    fun getCurrentPosition(): Long {
+        return mediaPlayer?.currentPosition?.toLong() ?: 0L
+    }
+
+    fun getDuration(): Long {
+        return mediaPlayer?.duration?.toLong() ?: 0L
+    }
+
+    // Updated playAudio to support direct calls
+    fun playAudio(url: String) {
+        // If it's the same URL and we have a player, just resume
+        if (url == currentAudioUrl && mediaPlayer != null) {
+            resumeAudio()
+            return
+        }
+
+        currentAudioUrl = url
+        mediaPlayer?.release()
+        mediaPlayer = MediaPlayer().apply {
+            setDataSource(url)
+            prepareAsync()
+            setOnPreparedListener {
+                start()
+                this@AudioPlayerService.isPlaying = true
+                showPlayerNotification(true)
+            }
+            setOnCompletionListener {
+                this@AudioPlayerService.isPlaying = false
+                showPlayerNotification(false)
+            }
+        }
+        startLocationUpdates()
+    }
+
+    fun resumeAudio() {
+        mediaPlayer?.start()
+        isPlaying = true
+        showPlayerNotification(true)
+        startLocationUpdates()
+    }
+
+    fun pauseAudio() {
+        mediaPlayer?.pause()
+        isPlaying = false
+        showPlayerNotification(false)
+    }
+
+    // --- Existing Service Methods ---
+
     private fun fetchLocationsFromFirestore() {
+        // ... (Keep your existing code) ...
         val db = FirebaseFirestore.getInstance()
         val rootRef = db.collection("locations").document("locations")
         val collections = mapOf("indoor_locations" to "indoor", "outdoor_locations" to "outdoor")
@@ -100,30 +173,6 @@ class AudioPlayerService : Service() {
                         )
                     }
                 }
-                Log.d("AudioService", "Loaded ${allLocations.size} locations for background tracking")
-            }
-        }
-    }
-
-    private fun fetchAndNotify(location: LocationModel) {
-        // Simple fetch logic for the "Newest" story to show in notification
-        val db = FirebaseFirestore.getInstance()
-        val query = if (location.type == "indoor") {
-            db.collection("locations").document("locations")
-                .collection("indoor_locations").document(location.id)
-                .collection("floor").document("1") // Default to floor 1 for notification
-                .collection("posts")
-        } else {
-            db.collection("locations").document("locations")
-                .collection("outdoor_locations").document(location.id)
-                .collection("posts")
-        }
-
-        query.limit(1).get().addOnSuccessListener { snapshot ->
-            if (!snapshot.isEmpty) {
-                val doc = snapshot.documents[0]
-                val storyName = doc.getString("name") ?: "New Story"
-                sendDiscoveryNotification(location.locationName, storyName)
             }
         }
     }
@@ -131,7 +180,6 @@ class AudioPlayerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
 
-        // Update Metadata
         intent?.getStringExtra(EXTRA_TITLE)?.let { currentTitle = it }
         intent?.getStringExtra(EXTRA_USER)?.let { currentUser = it }
         intent?.getStringExtra(EXTRA_LOCATION)?.let { currentLocationName = it }
@@ -139,13 +187,11 @@ class AudioPlayerService : Service() {
         when (action) {
             ACTION_START_TRACKING -> {
                 startLocationUpdates()
-                // Show a foreground notification immediately so the service stays alive
                 showPlayerNotification(isPlaying)
             }
             ACTION_PLAY -> {
                 val url = intent.getStringExtra(EXTRA_AUDIO_URL)
                 if (url != null) playAudio(url) else resumeAudio()
-                startLocationUpdates() // Ensure tracking is on when playing
             }
             ACTION_PAUSE -> {
                 pauseAudio()
@@ -156,50 +202,17 @@ class AudioPlayerService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000) // Check every 5s
-            .setMinUpdateDistanceMeters(5f) // Or every 5 meters
+        // ... (Keep your existing code) ...
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+            .setMinUpdateDistanceMeters(5f)
             .build()
-
         try {
             fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
         } catch (e: Exception) {
-            Log.e("AudioService", "Permission missing for background location", e)
+            Log.e("AudioService", "Permission missing", e)
         }
     }
 
-    // --- Audio Logic ---
-    private fun playAudio(url: String) {
-        mediaPlayer?.release()
-        mediaPlayer = MediaPlayer().apply {
-            setDataSource(url)
-            prepareAsync()
-            setOnPreparedListener {
-                start()
-                this@AudioPlayerService.isPlaying = true
-                showPlayerNotification(true)
-            }
-            setOnCompletionListener {
-                this@AudioPlayerService.isPlaying = false
-                showPlayerNotification(false)
-            }
-        }
-    }
-
-    private fun resumeAudio() {
-        mediaPlayer?.start()
-        isPlaying = true
-        showPlayerNotification(true)
-    }
-
-    private fun pauseAudio() {
-        mediaPlayer?.pause()
-        isPlaying = false
-        showPlayerNotification(false)
-    }
-
-    // --- Notification Logic ---
-
-    // 1. Persistent Player Notification (Keeps Service Alive)
     private fun showPlayerNotification(isPlaying: Boolean) {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         createChannel(manager, CHANNEL_ID, "Background Audio")
@@ -223,38 +236,15 @@ class AudioPlayerService : Service() {
                 if (isPlaying) "Pause" else "Play",
                 pendingIntent
             )
-            .setOngoing(true) // Required for Foreground Service
+            .setOngoing(true)
             .build()
 
         startForeground(101, notification)
     }
 
-    // 2. Discovery Notification (Heads-up alert)
-    private fun sendDiscoveryNotification(locationName: String, storyTitle: String) {
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        createChannel(manager, DISCOVERY_CHANNEL_ID, "Location Discovery")
-
-        // Clicking this could open the App/AudioScreen
-        // val intent = Intent(this, MainActivity::class.java) ...
-
-        val notification = NotificationCompat.Builder(this, DISCOVERY_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_round)
-            .setContentTitle("📍 You found $locationName!")
-            .setContentText("Listen to: $storyTitle")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setAutoCancel(true)
-            .build()
-
-        manager.notify(200, notification)
-    }
-
     private fun createChannel(manager: NotificationManager, id: String, name: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_LOW)
-            if (id == DISCOVERY_CHANNEL_ID) {
-                channel.importance = NotificationManager.IMPORTANCE_HIGH
-            }
             manager.createNotificationChannel(channel)
         }
     }
@@ -265,6 +255,4 @@ class AudioPlayerService : Service() {
         mediaSession.release()
         fusedLocationClient.removeLocationUpdates(locationCallback)
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 }

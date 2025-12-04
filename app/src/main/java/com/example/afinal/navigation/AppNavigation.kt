@@ -106,7 +106,8 @@ fun AppNavigation(
             if (storyId != null) {
                 AudioPlayerScreen(
                     navController = navController,
-                    storyId = storyId
+                    storyId = storyId,
+                    storyViewModel = storyViewModel
                 )
             } else {
                 navController.popBackStack()
