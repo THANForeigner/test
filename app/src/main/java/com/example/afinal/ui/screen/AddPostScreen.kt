@@ -57,6 +57,9 @@ fun AddPostScreen(
     var audioUri by remember { mutableStateOf<Uri?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
+    var selectedFloor by remember { mutableStateOf<Int?>(null) }
+    var floorDropdownExpanded by remember { mutableStateOf(false) }
+
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -113,7 +116,7 @@ fun AddPostScreen(
                                 audioUri,
                                 isIndoor,
                                 currentLocationId,
-                                1
+                                selectedFloor
                             )
                             if (postId.isNotBlank()) {
                                 Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
@@ -227,7 +230,44 @@ fun AddPostScreen(
                 maxLines = 5
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+
+
+            if (isIndoor) {
+                val floors = storyViewModel.currentLocation.value?.floors ?: emptyList()
+                ExposedDropdownMenuBox(
+                    expanded = floorDropdownExpanded,
+                    onExpandedChange = { floorDropdownExpanded = !floorDropdownExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = selectedFloor?.toString() ?: "Select Floor",
+                        onValueChange = { },
+                        readOnly = true,
+                        label = { Text("Floor") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = floorDropdownExpanded,
+                        onDismissRequest = { floorDropdownExpanded = false }
+                    ) {
+                        floors.forEach { floor ->
+                            DropdownMenuItem(
+                                text = { Text("Floor $floor") },
+                                onClick = {
+                                    selectedFloor = floor
+                                    floorDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             // 3. AUDIO SELECTION AREA
             Text(

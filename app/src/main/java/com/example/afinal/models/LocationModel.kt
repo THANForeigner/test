@@ -8,5 +8,6 @@ data class LocationModel(
     val locationName: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val type: String = "outdoor"
+    val type: String = "outdoor",
+    val floors: List<Int> = emptyList()
 )

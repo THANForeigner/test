@@ -9,5 +9,6 @@ data class PostModel(
     val description: String = "",
     val audioUrl: String? = null,
     val pictures: List<String> = emptyList(),
-    val position: Position? = null
+    val position: Position? = null,
+    val floor: Int? = null
 )

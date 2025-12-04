@@ -21,20 +21,21 @@ import com.example.afinal.navigation.Routes
 @Composable
 fun UserScreen(mainNavController: NavController) {
   val authViewModel: AuthViewModel = viewModel()
-  Column(
-          modifier = Modifier.fillMaxSize().padding(16.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.Center
-  ) {
-    Icon(
-            imageVector = Icons.Default.AccountCircle,
-            contentDescription = "Avatar",
-            modifier = Modifier.size(120.dp),
-            tint = Color.Gray
-    )
-    Spacer(modifier = Modifier.height(16.dp))
-    Text("user@example.com", style = MaterialTheme.typography.titleLarge)
-    Spacer(modifier = Modifier.height(32.dp))
+    val userEmail = authViewModel.userEmail
+    Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = "Avatar",
+                modifier = Modifier.size(120.dp),
+                tint = Color.Gray
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(userEmail ?: "No email found", style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(32.dp))
 
     Button(
             onClick = {

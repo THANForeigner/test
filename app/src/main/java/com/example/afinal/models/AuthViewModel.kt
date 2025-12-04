@@ -8,6 +8,8 @@ import kotlinx.coroutines.tasks.await
 
 class AuthViewModel : ViewModel() {
     private val auth: FirebaseAuth = Firebase.auth
+    val userEmail: String?
+        get() = auth.currentUser?.email
 
     suspend fun register(email: String, password: String): Boolean {
         return try {

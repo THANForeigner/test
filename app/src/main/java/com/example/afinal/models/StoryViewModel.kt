@@ -105,13 +105,24 @@ class StoryViewModel : ViewModel() {
                         val lat = document.getDouble("latitude")
                         val lng = document.getDouble("longitude")
                         if (lat != null && lng != null) {
+                            val locationId = document.id
+                            var floors = emptyList<Int>()
+                            if (type == "indoor") {
+                                val floorSnapshot = rootRef.collection(collectionName)
+                                    .document(locationId)
+                                    .collection("floor")
+                                    .get()
+                                    .await()
+                                floors = floorSnapshot.documents.mapNotNull { it.id.toIntOrNull() }
+                            }
                             loadedLocations.add(
                                 LocationModel(
-                                    id = document.id,
+                                    id = locationId,
                                     locationName = document.id,
                                     latitude = lat,
                                     longitude = lng,
-                                    type = type
+                                    type = type,
+                                    floors = floors
                                 )
                             )
                         }
