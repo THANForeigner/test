@@ -42,6 +42,8 @@ class AudioPlayerService : Service() {
     // Track what is currently playing to avoid restarting
     var currentAudioUrl: String? = null
         private set
+    var currentStoryId: String? = null
+        private set
     // --- Location Components ---
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
@@ -58,6 +60,7 @@ class AudioPlayerService : Service() {
         const val ACTION_START_TRACKING = "ACTION_START_TRACKING"
 
         const val EXTRA_AUDIO_URL = "EXTRA_AUDIO_URL"
+        const val EXTRA_STORY_ID = "EXTRA_STORY_ID"
         const val EXTRA_TITLE = "EXTRA_TITLE"
         const val EXTRA_USER = "EXTRA_USER"
         const val EXTRA_LOCATION = "EXTRA_LOCATION"
@@ -90,7 +93,8 @@ class AudioPlayerService : Service() {
 
     // --- Public Methods for UI ---
 
-    fun updateMetadata(title: String, user: String, location: String) {
+    fun updateMetadata(title: String, user: String, location: String, id: String) {
+        currentStoryId = id
         currentTitle = title
         currentUser = user
         currentLocationName = location
@@ -183,7 +187,7 @@ class AudioPlayerService : Service() {
         intent?.getStringExtra(EXTRA_TITLE)?.let { currentTitle = it }
         intent?.getStringExtra(EXTRA_USER)?.let { currentUser = it }
         intent?.getStringExtra(EXTRA_LOCATION)?.let { currentLocationName = it }
-
+        intent?. getStringExtra(EXTRA_STORY_ID)?.let{ currentStoryId = it }
         when (action) {
             ACTION_START_TRACKING -> {
                 startLocationUpdates()
@@ -217,6 +221,20 @@ class AudioPlayerService : Service() {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         createChannel(manager, CHANNEL_ID, "Background Audio")
 
+        val notificationIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // --- PASS THE ID BACK TO THE ACTIVITY ---
+            putExtra("notification_story_id", currentStoryId)
+        }
+
+        val pendingContentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Play/Pause Action Intent (Background Service)
         val toggleIntent = Intent(this, AudioPlayerService::class.java).apply {
             action = if (isPlaying) ACTION_PAUSE else ACTION_PLAY
         }
@@ -228,6 +246,7 @@ class AudioPlayerService : Service() {
             .setSmallIcon(R.mipmap.ic_launcher_round)
             .setContentTitle(currentTitle)
             .setContentText(content)
+            .setContentIntent(pendingContentIntent)
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                 .setShowActionsInCompactView(0)
                 .setMediaSession(mediaSession.sessionToken))

@@ -89,7 +89,7 @@ fun AudioPlayerScreen(
 
             // Check if we need to start a new song
             if (service.currentAudioUrl != story.playableUrl) {
-                service.updateMetadata(story.name, story.user, story.locationName)
+                service.updateMetadata(story.name, story.user, story.locationName, story.id)
                 service.playAudio(story.playableUrl)
             } else {
                 // If already playing this song, just sync state
