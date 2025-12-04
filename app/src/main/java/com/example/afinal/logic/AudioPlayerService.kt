@@ -7,7 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.MediaPlayer
-import android.os.Binder // Import Binder
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
@@ -22,7 +22,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 class AudioPlayerService : Service() {
 
-    // --- Binder for UI Communication ---
     private val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
@@ -33,26 +32,25 @@ class AudioPlayerService : Service() {
         return binder
     }
 
-    // --- Audio Components ---
     private var mediaPlayer: MediaPlayer? = null
-    var isPlaying = false // Allow reading from outside, setting only internal
+    var isPlaying = false
         private set
     private lateinit var mediaSession: MediaSessionCompat
 
-    // Track what is currently playing to avoid restarting
     var currentAudioUrl: String? = null
         private set
     var currentStoryId: String? = null
         private set
-    // --- Location Components ---
+
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private val allLocations = mutableListOf<LocationModel>()
 
-    // Track Notification State
+    // Notification State
     private var currentTitle: String = "Waiting for location..."
     private var currentUser: String = "Student Stories"
     private var currentLocationName: String = ""
+    private var lastNotifiedId: String? = null // To avoid spamming notifications
 
     companion object {
         const val ACTION_PLAY = "ACTION_PLAY"
@@ -80,18 +78,98 @@ class AudioPlayerService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 val location = locationResult.lastLocation ?: return
-                // Calculate Distance logic here (omitted for brevity, keep your existing logic)
+
+                // 1. Find the nearest location using DistanceCalculator
                 val nearest = DistanceCalculator.findNearestLocation(
                     location.latitude,
                     location.longitude,
                     allLocations
                 )
+
+                // 2. If a location is found and we haven't just notified about it
+                if (nearest != null && nearest.id != lastNotifiedId) {
+                    Log.d("AudioService", "Discovered location: ${nearest.locationName}")
+                    lastNotifiedId = nearest.id
+                    fetchAndNotify(nearest)
+                }
             }
         }
         fetchLocationsFromFirestore()
     }
 
-    // --- Public Methods for UI ---
+    private fun fetchAndNotify(locationModel: LocationModel) {
+        val db = FirebaseFirestore.getInstance()
+        val docRef = if (locationModel.type == "indoor") {
+            db.collection("locations").document("locations")
+                .collection("indoor_locations").document(locationModel.id)
+        } else {
+            db.collection("locations").document("locations")
+                .collection("outdoor_locations").document(locationModel.id)
+        }
+
+        // Assuming logic for posts based on type (indoor often has floors)
+        val postsQuery = if (locationModel.type == "indoor") {
+            docRef.collection("floor").document("1").collection("posts")
+        } else {
+            docRef.collection("posts")
+        }
+
+        postsQuery.get().addOnSuccessListener { snapshot ->
+            if (!snapshot.isEmpty) {
+                val storyDoc = snapshot.documents.first()
+                val title = storyDoc.getString("title") ?: "New Story"
+                val user = storyDoc.getString("user") ?: "Unknown User"
+                val audioUrl = storyDoc.getString("audioURL") ?: ""
+
+                if (audioUrl.isNotEmpty()) {
+                    sendDiscoveryNotification(locationModel.id, title, user, audioUrl)
+                }
+            }
+        }.addOnFailureListener { e ->
+            Log.e("AudioService", "Error fetching story details", e)
+        }
+    }
+
+    private fun sendDiscoveryNotification(storyId: String, title: String, user: String, audioUrl: String) {
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        createChannel(manager, DISCOVERY_CHANNEL_ID, "Story Discoveries")
+
+        // Intent to open App
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("notification_story_id", storyId)
+        }
+        val pendingOpenApp = PendingIntent.getActivity(
+            this, storyId.hashCode(), openAppIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // Intent to Play immediately
+        val playIntent = Intent(this, AudioPlayerService::class.java).apply {
+            action = ACTION_PLAY
+            putExtra(EXTRA_AUDIO_URL, audioUrl)
+            putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_USER, user)
+            putExtra(EXTRA_STORY_ID, storyId)
+        }
+        val pendingPlay = PendingIntent.getService(
+            this, storyId.hashCode(), playIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, DISCOVERY_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher_round)
+            .setContentTitle("Nearby: $title")
+            .setContentText("By $user")
+            .setContentIntent(pendingOpenApp)
+            .setAutoCancel(true)
+            .addAction(android.R.drawable.ic_media_play, "Play Now", pendingPlay)
+            .build()
+
+        manager.notify(storyId.hashCode(), notification)
+    }
+
+    // ... (UI Update methods - updateMetadata, seekTo, etc. remain the same) ...
 
     fun updateMetadata(title: String, user: String, location: String, id: String) {
         currentStoryId = id
@@ -113,9 +191,7 @@ class AudioPlayerService : Service() {
         return mediaPlayer?.duration?.toLong() ?: 0L
     }
 
-    // Updated playAudio to support direct calls
     fun playAudio(url: String) {
-        // If it's the same URL and we have a player, just resume
         if (url == currentAudioUrl && mediaPlayer != null) {
             resumeAudio()
             return
@@ -152,10 +228,7 @@ class AudioPlayerService : Service() {
         showPlayerNotification(false)
     }
 
-    // --- Existing Service Methods ---
-
     private fun fetchLocationsFromFirestore() {
-        // ... (Keep your existing code) ...
         val db = FirebaseFirestore.getInstance()
         val rootRef = db.collection("locations").document("locations")
         val collections = mapOf("indoor_locations" to "indoor", "outdoor_locations" to "outdoor")
@@ -201,14 +274,16 @@ class AudioPlayerService : Service() {
                 pauseAudio()
             }
         }
-        return START_NOT_STICKY
+        // Important: If we want the service to keep running to check location,
+        // we must return START_STICKY and ensure startForeground is called.
+        return START_STICKY
     }
 
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
-        // ... (Keep your existing code) ...
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
-            .setMinUpdateDistanceMeters(5f)
+        // Request updates more frequently if needed, e.g., every 5 seconds
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000)
+            .setMinUpdateDistanceMeters(3f)
             .build()
         try {
             fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
@@ -223,7 +298,6 @@ class AudioPlayerService : Service() {
 
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            // --- PASS THE ID BACK TO THE ACTIVITY ---
             putExtra("notification_story_id", currentStoryId)
         }
 
@@ -234,7 +308,6 @@ class AudioPlayerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Play/Pause Action Intent (Background Service)
         val toggleIntent = Intent(this, AudioPlayerService::class.java).apply {
             action = if (isPlaying) ACTION_PAUSE else ACTION_PLAY
         }
@@ -263,7 +336,7 @@ class AudioPlayerService : Service() {
 
     private fun createChannel(manager: NotificationManager, id: String, name: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH)
             manager.createNotificationChannel(channel)
         }
     }
