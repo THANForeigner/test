@@ -57,6 +57,37 @@ class StoryViewModel : ViewModel() {
             _isIndoor.value = false
         }
     }
+
+    fun addLocation(latitude: Double, longitude: Double, locationName: String, type: String) {
+        viewModelScope.launch {
+            val db = FirebaseFirestore.getInstance()
+            // Use the user-provided locationName as the document ID
+            val newLocationRef = db.collection("locations").document("locations")
+                .collection("${type}_locations").document(locationName)
+
+            val newLocationModel = LocationModel(
+                id = locationName,
+                locationName = locationName,
+                latitude = latitude,
+                longitude = longitude,
+                type = type
+            )
+
+            try {
+                newLocationRef.set(newLocationModel).await()
+                Log.d("StoryViewModel", "Location added successfully: $newLocationModel")
+
+                // Update the local list of locations
+                _locations.value = _locations.value + newLocationModel
+
+                // Optionally, set this new location as the current one
+                _currentLocationId.value = locationName
+
+            } catch (e: Exception) {
+                Log.e("StoryViewModel", "Error adding new location: $newLocationModel", e)
+            }
+        }
+    }
     private fun fetchLocations() {
         viewModelScope.launch {
             val db = FirebaseFirestore.getInstance()
