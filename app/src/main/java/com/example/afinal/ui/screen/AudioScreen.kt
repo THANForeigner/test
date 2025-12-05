@@ -1,5 +1,6 @@
 package com.example.afinal.ui.screen
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.afinal.logic.LocationGPS // Import your LocationGPS class
 import com.example.afinal.models.LocationViewModel
 import com.example.afinal.models.StoryViewModel
 import com.example.afinal.navigation.Routes
@@ -48,7 +50,16 @@ fun AudiosScreen(
     val indoorDetector = remember { IndoorDetector(context) }
     val isUserIndoor by indoorDetector.observeIndoorStatus().collectAsState(initial = false)
 
+    // --- NEW: START LIVE GPS UPDATES ---
+    // This connects LocationGPS to LocationViewModel to update the UI "live" (every ~1s)
+    LaunchedEffect(Unit) {
+        val locationGPS = LocationGPS(context)
+        locationGPS.requestLocationUpdate(locationViewModel)
+        Log.d("AudioScreen", "Requested live location updates from LocationGPS")
+    }
+
     // 2. REPLACED FetchAudio WITH SYNCED ZONE LOGIC
+    // This now runs every time 'userLocation' is updated by the block above
     LaunchedEffect(userLocation, allLocations) {
         if (userLocation != null && allLocations.isNotEmpty()) {
             // UPDATED: Use findNearestLocation instead of findCurrentLocation
@@ -59,6 +70,9 @@ fun AudiosScreen(
                 candidates = allLocations
                 // default radius of 3.0m is used here
             )
+
+            // Log for debugging "refreshing" behavior
+            Log.d("ZoneDebug", "User: ${userLocation!!.latitude},${userLocation!!.longitude} -> Nearest: ${currentLoc?.id}")
 
             if (currentLoc != null) {
                 // Only fetch if we changed location to avoid spamming
@@ -112,7 +126,13 @@ fun AudiosScreen(
                         if (isUserIndoor) {
                             Text("(Indoor Mode)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                         }
+                        // Debug text to visualize live updates
                         if (userLocation != null) {
+                            Text(
+                                text = "GPS: ${userLocation?.latitude}, ${userLocation?.longitude}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.LightGray
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
                             FloatingActionButton(
                                 onClick = { showAddLocationDialog = true },
@@ -143,14 +163,6 @@ fun AudiosScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                // Zone Feedback
-                                if (currentLocation?.isZone == true) {
-                                    Text(
-                                        text = "You are inside the zone",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                    )
-                                }
                             }
                         }
 

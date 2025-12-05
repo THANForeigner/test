@@ -6,7 +6,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.afinal.models.StoryModel
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -17,6 +16,11 @@ import kotlin.collections.iterator
 class StoryViewModel : ViewModel() {
     private val _locations = mutableStateOf<List<LocationModel>>(emptyList())
     val locations: State<List<LocationModel>> = _locations
+
+    // Helper lists to store the latest data from each collection separately
+    private var _indoorList = listOf<LocationModel>()
+    private var _outdoorList = listOf<LocationModel>()
+
     private val _currentStories = mutableStateOf<List<StoryModel>>(emptyList())
     val currentStories: State<List<StoryModel>> = _currentStories
     private val _allStories = mutableStateOf<List<StoryModel>>(emptyList())
@@ -37,19 +41,23 @@ class StoryViewModel : ViewModel() {
         fetchLocations()
         fetchAllStories()
     }
+
     fun getStory(id: String): StoryModel? {
         return _currentStories.value.find { it.id == id }
             ?: _allStories.value.find { it.id == id }
     }
+
     fun setIndoorStatus(isIndoor: Boolean) {
         _isIndoor.value = isIndoor
     }
+
     fun setCurrentFloor(floor: Int) {
         _currentFloor.value = floor
         _currentLocationId.value?.let { locId ->
             fetchStoriesForLocation(locId, floor)
         }
     }
+
     fun clearLocation() {
         if (_currentLocationId.value != null) {
             _currentLocationId.value = null
@@ -76,11 +84,8 @@ class StoryViewModel : ViewModel() {
             try {
                 newLocationRef.set(newLocationModel).await()
                 Log.d("StoryViewModel", "Location added successfully: $newLocationModel")
-
-                // Update the local list of locations
-                _locations.value = _locations.value + newLocationModel
-
-                // Optionally, set this new location as the current one
+                // No need to manually update _locations here, the snapshot listener will catch it automatically
+                // Optionally set current location immediately if needed
                 _currentLocationId.value = locationName
 
             } catch (e: Exception) {
@@ -88,81 +93,95 @@ class StoryViewModel : ViewModel() {
             }
         }
     }
+
     private fun fetchLocations() {
-        viewModelScope.launch {
-            val db = FirebaseFirestore.getInstance()
-            val loadedLocations = mutableListOf<LocationModel>()
-            val rootRef = db.collection("locations").document("locations")
-            val collectionsMap = mapOf(
-                "indoor_locations" to "indoor",
-                "outdoor_locations" to "outdoor"
-            )
+        val db = FirebaseFirestore.getInstance()
+        val rootRef = db.collection("locations").document("locations")
+        val collectionsMap = mapOf(
+            "indoor_locations" to "indoor",
+            "outdoor_locations" to "outdoor"
+        )
 
-            try {
-                for ((collectionName, type) in collectionsMap) {
-                    val snapshot = rootRef.collection(collectionName).get().await()
-                    for (document in snapshot.documents) {
-                        val lat = document.getDouble("latitude")
-                        val lng = document.getDouble("longitude")
-                        var lat1: Double? = null
-                        var lat2: Double? = null
-                        var lat3: Double? = null
-                        var lat4: Double? = null
-                        var lng1: Double? = null
-                        var lng2: Double? = null
-                        var lng3: Double? = null
-                        var lng4: Double? = null
+        for ((collectionName, type) in collectionsMap) {
+            // CHANGED: Use addSnapshotListener for real-time updates
+            rootRef.collection(collectionName).addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("Firestore", "Listen failed for $collectionName", e)
+                    return@addSnapshotListener
+                }
 
-                        // 1. Fetch Zone Flag (default to false if missing)
-                        val isZone = document.getBoolean("zone") ?: false
+                if (snapshot != null) {
+                    // Since we might need to fetch floors (async), we launch a coroutine
+                    viewModelScope.launch {
+                        val parsedList = mutableListOf<LocationModel>()
 
-                        if(isZone) {
-                            lat1 = document.getDouble("latitude1")
-                            lng1 = document.getDouble("longitude1")
-                            lat2 = document.getDouble("latitude2")
-                            lng2 = document.getDouble("longitude2")
-                            lat3 = document.getDouble("latitude3")
-                            lng3 = document.getDouble("longitude3")
-                            lat4 = document.getDouble("latitude4")
-                            lng4 = document.getDouble("longitude4")
-                            Log.d("ZoneDebug", "Zone loaded: $lat1, $lng1 ...")
-                        }
-                        if (lat != null && lng != null) {
-                            val locationId = document.id
-                            var floors = emptyList<Int>()
-                            if (type == "indoor") {
-                                val floorSnapshot = rootRef.collection(collectionName)
-                                    .document(locationId)
-                                    .collection("floor")
-                                    .get()
-                                    .await()
-                                floors = floorSnapshot.documents.mapNotNull { it.id.toIntOrNull() }
-                            }
+                        for (document in snapshot.documents) {
+                            val lat = document.getDouble("latitude")
+                            val lng = document.getDouble("longitude")
 
-                            loadedLocations.add(
-                                LocationModel(
-                                    id = locationId,
-                                    locationName = document.id,
-                                    latitude = lat,
-                                    longitude = lng,
-                                    type = type,
-                                    floors = floors,
-                                    isZone = isZone,
-                                    latitude1 = lat1, longitude1 = lng1,
-                                    latitude2 = lat2, longitude2 = lng2,
-                                    latitude3 = lat3, longitude3 = lng3,
-                                    latitude4 = lat4, longitude4 = lng4
+                            // 1. Fetch Zone Data
+                            val isZone = document.getBoolean("zone") ?: false
+                            val lat1 = document.getDouble("latitude1")
+                            val lng1 = document.getDouble("longitude1")
+                            val lat2 = document.getDouble("latitude2")
+                            val lng2 = document.getDouble("longitude2")
+                            val lat3 = document.getDouble("latitude3")
+                            val lng3 = document.getDouble("longitude3")
+                            val lat4 = document.getDouble("latitude4")
+                            val lng4 = document.getDouble("longitude4")
+
+                            if (lat != null && lng != null) {
+                                val locationId = document.id
+                                var floors = emptyList<Int>()
+
+                                // 2. Fetch Floors if indoor
+                                if (type == "indoor") {
+                                    try {
+                                        val floorSnapshot = rootRef.collection(collectionName)
+                                            .document(locationId)
+                                            .collection("floor")
+                                            .get()
+                                            .await()
+                                        floors = floorSnapshot.documents.mapNotNull { it.id.toIntOrNull() }
+                                    } catch (ex: Exception) {
+                                        Log.e("StoryViewModel", "Error fetching floors for $locationId", ex)
+                                    }
+                                }
+
+                                parsedList.add(
+                                    LocationModel(
+                                        id = locationId,
+                                        locationName = document.id,
+                                        latitude = lat,
+                                        longitude = lng,
+                                        type = type,
+                                        floors = floors,
+                                        isZone = isZone,
+                                        latitude1 = lat1, longitude1 = lng1,
+                                        latitude2 = lat2, longitude2 = lng2,
+                                        latitude3 = lat3, longitude3 = lng3,
+                                        latitude4 = lat4, longitude4 = lng4
+                                    )
                                 )
-                            )
+                            }
                         }
+
+                        // 3. Update the specific list and merge
+                        if (type == "indoor") {
+                            _indoorList = parsedList
+                        } else {
+                            _outdoorList = parsedList
+                        }
+
+                        // Merge both lists into the exposed State
+                        _locations.value = _indoorList + _outdoorList
+                        Log.d("StoryViewModel", "Locations updated. Total: ${_locations.value.size} (Indoor: ${_indoorList.size}, Outdoor: ${_outdoorList.size})")
                     }
                 }
-                _locations.value = loadedLocations
-            } catch (e: Exception) {
-                Log.e("Firestore", "Error fetching locations", e)
             }
         }
     }
+
     private fun fetchAllStories() {
         val db = FirebaseFirestore.getInstance()
         db.collectionGroup("posts").addSnapshotListener { snapshot, e ->
@@ -184,6 +203,7 @@ class StoryViewModel : ViewModel() {
         _currentFloor.value = floor
         val db = FirebaseFirestore.getInstance()
         val locationType = _locations.value.find { it.id == locationId }?.type ?: "outdoor"
+
         val query = if (locationType == "indoor") {
             db.collection("locations").document("locations")
                 .collection("indoor_locations").document(locationId)
@@ -212,6 +232,7 @@ class StoryViewModel : ViewModel() {
         _loadedFloor = floor
         setIndoorStatus(locationType == "indoor")
     }
+
     private fun processSnapshot(
         documents: List<DocumentSnapshot>,
         locationId: String?,
