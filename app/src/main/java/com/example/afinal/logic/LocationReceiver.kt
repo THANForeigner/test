@@ -15,22 +15,16 @@ import com.example.afinal.logic.MainActivity
 import com.example.afinal.models.LocationModel
 import com.google.android.gms.location.LocationResult
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage // [IMPORT ADDED]
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 class LocationReceiver : BroadcastReceiver() {
 
     companion object {
         const val DISCOVERY_CHANNEL_ID = "discovery_channel"
-        private const val R_EARTH = 6371.0
-        private const val TRIGGER_DISTANCE_METERS = 50.0
         private const val TAG = "LocationReceiverDebug"
     }
 
@@ -39,7 +33,7 @@ class LocationReceiver : BroadcastReceiver() {
             val result = LocationResult.extractResult(intent)
             val location = result?.lastLocation ?: return
 
-            Log.d(TAG, ">>> 1. Background Location RECEIVED: Lat=${location.latitude}, Lng=${location.longitude}")
+            Log.d(TAG, ">>> Background Location: ${location.latitude}, ${location.longitude}")
 
             val pendingResult = goAsync()
 
@@ -47,7 +41,7 @@ class LocationReceiver : BroadcastReceiver() {
                 try {
                     checkStoriesNearby(context, location.latitude, location.longitude)
                 } catch (e: Exception) {
-                    Log.e(TAG, "!!! Error checking stories", e)
+                    Log.e(TAG, "Error checking stories", e)
                 } finally {
                     pendingResult.finish()
                 }
@@ -59,7 +53,6 @@ class LocationReceiver : BroadcastReceiver() {
         val db = FirebaseFirestore.getInstance()
         val allLocations = mutableListOf<LocationModel>()
 
-        // 1. Fetch ALL locations
         val collections = mapOf("indoor_locations" to "indoor", "outdoor_locations" to "outdoor")
 
         for ((collectionName, type) in collections) {
@@ -69,20 +62,43 @@ class LocationReceiver : BroadcastReceiver() {
             for (doc in snapshot.documents) {
                 val lLat = doc.getDouble("latitude")
                 val lLng = doc.getDouble("longitude")
+
+                // [FETCH NEW FIELDS FOR ZONES]
+                val isZone = doc.getBoolean("zone") ?: false
+
+                val lat1 = doc.getDouble("latitude1"); val lng1 = doc.getDouble("longitude1")
+                val lat2 = doc.getDouble("latitude2"); val lng2 = doc.getDouble("longitude2")
+                val lat3 = doc.getDouble("latitude3"); val lng3 = doc.getDouble("longitude3")
+                val lat4 = doc.getDouble("latitude4"); val lng4 = doc.getDouble("longitude4")
+
                 if (lLat != null && lLng != null) {
-                    allLocations.add(LocationModel(doc.id, doc.id, lLat, lLng, type))
+                    allLocations.add(
+                        LocationModel(
+                            id = doc.id,
+                            locationName = doc.id,
+                            latitude = lLat,
+                            longitude = lLng,
+                            type = type,
+                            isZone = isZone,
+                            latitude1 = lat1, longitude1 = lng1,
+                            latitude2 = lat2, longitude2 = lng2,
+                            latitude3 = lat3, longitude3 = lng3,
+                            latitude4 = lat4, longitude4 = lng4
+                        )
+                    )
                 }
             }
         }
 
-        // 2. Find nearest
-        val nearest = findNearestLocation(lat, lng, allLocations)
+        // [USE CENTRALIZED DISTANCE LOGIC]
+        // This now uses the shared logic (Zone Polygon check + Radius check)
+        val currentLoc = DistanceCalculator.findCurrentLocation(lat, lng, allLocations)
 
-        if (nearest != null) {
-            Log.d(TAG, ">>> Nearest: ${nearest.id}. Fetching story...")
-            fetchFirstStoryAndNotify(context, nearest)
+        if (currentLoc != null) {
+            Log.d(TAG, ">>> Entered Location: ${currentLoc.id}. Fetching story...")
+            fetchFirstStoryAndNotify(context, currentLoc)
         } else {
-            Log.d(TAG, ">>> No locations within ${TRIGGER_DISTANCE_METERS}m.")
+            Log.d(TAG, ">>> No locations match.")
         }
     }
 
@@ -107,37 +123,26 @@ class LocationReceiver : BroadcastReceiver() {
 
         if (!snapshot.isEmpty) {
             val storyDoc = snapshot.documents.first()
-
             val storyId = storyDoc.id
             val title = storyDoc.getString("name") ?: "New Story"
             val user = storyDoc.getString("user") ?: "Unknown User"
             var audioUrl = storyDoc.getString("audioUrl") ?: ""
 
-            // [FIX START] Handle gs:// URLs
             if (audioUrl.startsWith("gs://")) {
                 try {
-                    Log.d(TAG, "Converting gs:// URL to HTTPS...")
                     val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(audioUrl)
                     audioUrl = storageRef.downloadUrl.await().toString()
-                    Log.d(TAG, "Converted URL: $audioUrl")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to resolve GS URL", e)
-                    audioUrl = "" // Mark invalid so we don't crash player
+                    audioUrl = ""
                 }
             }
-            // [FIX END]
-
-            Log.d(TAG, ">>> 2. Post FETCHED: Title='$title', AudioURL='$audioUrl'")
 
             if (audioUrl.isNotEmpty()) {
                 sendDiscoveryNotification(context, location.id, storyId, title, user, audioUrl)
-            } else {
-                Log.d(TAG, "!!! Audio URL is empty or failed to convert. Skipping.")
             }
         }
     }
 
-    // ... sendDiscoveryNotification and findNearestLocation remain the same ...
     private fun sendDiscoveryNotification(
         context: Context, locationId: String, storyId: String,
         title: String, user: String, audioUrl: String
@@ -173,36 +178,13 @@ class LocationReceiver : BroadcastReceiver() {
 
         val notification = NotificationCompat.Builder(context, DISCOVERY_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher_round)
-            .setContentTitle("Nearby: $title")
-            .setContentText("By $user")
+            .setContentTitle("Entered: $title") // Changed text slightly
+            .setContentText("Tap to listen to $user's story")
             .setContentIntent(pendingOpenApp)
             .setAutoCancel(true)
             .addAction(android.R.drawable.ic_media_play, "Play Now", pendingPlay)
             .build()
 
         manager.notify(locationId.hashCode(), notification)
-    }
-
-    private fun findNearestLocation(lat: Double, lng: Double, locations: List<LocationModel>): LocationModel? {
-        var minDest = Double.MAX_VALUE
-        var nearest: LocationModel? = null
-
-        for (loc in locations) {
-            val dLat = Math.toRadians(loc.latitude - lat)
-            val dLon = Math.toRadians(loc.longitude - lng)
-            val a = sin(dLat / 2) * sin(dLat / 2) +
-                    cos(Math.toRadians(lat)) * cos(Math.toRadians(loc.latitude)) *
-                    sin(dLon / 2) * sin(dLon / 2)
-            val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-            val distance = R_EARTH * c * 1000
-
-            if (distance < TRIGGER_DISTANCE_METERS) {
-                if (distance < minDest) {
-                    minDest = distance
-                    nearest = loc
-                }
-            }
-        }
-        return nearest
     }
 }

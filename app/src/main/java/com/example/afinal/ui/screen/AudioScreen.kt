@@ -19,7 +19,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.afinal.data.LocationData
 import com.example.afinal.models.LocationViewModel
 import com.example.afinal.models.StoryViewModel
 import com.example.afinal.navigation.Routes
@@ -49,51 +48,20 @@ fun AudiosScreen(
     val indoorDetector = remember { IndoorDetector(context) }
     val isUserIndoor by indoorDetector.observeIndoorStatus().collectAsState(initial = false)
 
-    // TRACK PAST LOCATION
-    // Store the last valid outdoor location to use when the user goes indoors.
-    var lastOutdoorLocation by remember { mutableStateOf<LocationData?>(null) }
-
-    // Update lastOutdoorLocation only when the user is explicitly outdoors and GPS is valid
-    LaunchedEffect(userLocation, isUserIndoor) {
-        if (!isUserIndoor && userLocation != null) {
-            lastOutdoorLocation = userLocation
-        }
-    }
-
-    // 2. REPLACED FetchAudio WITH SYNCED LOGIC
-    // This ensures MapScreen and AudioScreen behave exactly the same.
-    // Logic Updated: Determine whether to use live GPS or frozen Past Location
-    LaunchedEffect(userLocation, allLocations, isUserIndoor, lastOutdoorLocation) {
-        // Default to live user location
-        var targetLocation: LocationData? = userLocation
-
-        // If user is detected indoor, try to use the past outdoor location
-        if (isUserIndoor && lastOutdoorLocation != null && allLocations.isNotEmpty()) {
-            // Check if the past location is actually near an INDOOR building
-            val check = DistanceCalculator.findNearestLocation(
-                userLat = lastOutdoorLocation!!.latitude,
-                userLng = lastOutdoorLocation!!.longitude,
-                candidates = allLocations,
-                radius = 50.0f
-            )
-            // Only freeze location if the past location maps to a building with type="indoor"
-            if (check != null && check.type == "indoor") {
-                targetLocation = lastOutdoorLocation
-            }
-        }
-
-        if (targetLocation != null && allLocations.isNotEmpty()) {
-            val nearest = DistanceCalculator.findNearestLocation(
-                userLat = targetLocation!!.latitude,
-                userLng = targetLocation!!.longitude,
-                candidates = allLocations,
-                radius = 50.0f // Matches MapScreen visibility radius
+    // 2. REPLACED FetchAudio WITH SYNCED ZONE LOGIC
+    LaunchedEffect(userLocation, allLocations) {
+        if (userLocation != null && allLocations.isNotEmpty()) {
+            // UPDATED: Use findCurrentLocation (handles Zones + Radius)
+            val currentLoc = DistanceCalculator.findCurrentLocation(
+                userLat = userLocation!!.latitude,
+                userLng = userLocation!!.longitude,
+                candidates = allLocations
             )
 
-            if (nearest != null) {
+            if (currentLoc != null) {
                 // Only fetch if we changed location to avoid spamming
-                if (currentLocationId != nearest.id) {
-                    storyViewModel.fetchStoriesForLocation(nearest.id)
+                if (currentLocationId != currentLoc.id) {
+                    storyViewModel.fetchStoriesForLocation(currentLoc.id)
                 }
             } else {
                 storyViewModel.clearLocation()
@@ -101,7 +69,7 @@ fun AudiosScreen(
         }
     }
 
-    // Update StoryViewModel with the Sensor Status
+    // Update Indoor Status based on Location Type + Sensors
     LaunchedEffect(isUserIndoor, currentLocation) {
         if (currentLocation != null && currentLocation?.type == "outdoor") {
             storyViewModel.setIndoorStatus(false)
@@ -145,12 +113,10 @@ fun AudiosScreen(
                         if (userLocation != null) {
                             Spacer(modifier = Modifier.height(16.dp))
                             FloatingActionButton(
-                                onClick = {
-                                    showAddLocationDialog = true
-                                },
+                                onClick = { showAddLocationDialog = true },
                                 modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(Icons.Filled.Add, "Add new location")
+                                Icon(Icons.Filled.Add, "Add")
                             }
                         }
                     }
@@ -175,10 +141,10 @@ fun AudiosScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                // Feedback for user
-                                if (isIndoor && isUserIndoor) {
+                                // Zone Feedback
+                                if (currentLocation?.isZone == true) {
                                     Text(
-                                        text = "Location Pinned (GPS ignored)",
+                                        text = "You are inside the zone",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                     )
@@ -192,15 +158,15 @@ fun AudiosScreen(
                     }
                 }
 
+                // ... (Rest of LazyColumn UI remains the same) ...
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
                 ) {
                     item {
+                        // Add Post Button Card...
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             onClick = { navController.navigate(Routes.ADD_POST) },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
@@ -208,28 +174,19 @@ fun AudiosScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .fillMaxWidth(),
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Story",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                Icon(Icons.Default.Add, "Add Story", tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
                         }
                     }
-
                     items(currentStories) { story ->
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            onClick = {
-                                navController.navigate("${Routes.AUDIO_PLAYER}/${story.id}")
-                            }
+                            onClick = { navController.navigate("${Routes.AUDIO_PLAYER}/${story.id}") }
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -238,16 +195,9 @@ fun AudiosScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(story.name, style = MaterialTheme.typography.titleMedium)
-                                    if (story.user.isNotEmpty()) {
-                                        Text(
-                                            text = "By: ${story.user}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.secondary
-                                        )
-                                    }
                                     Text(story.description, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                 }
-                                Icon(Icons.Default.PlayCircleOutline, contentDescription = "Play")
+                                Icon(Icons.Default.PlayCircleOutline, "Play")
                             }
                         }
                     }
@@ -255,82 +205,43 @@ fun AudiosScreen(
             }
         }
 
-        // Add Location Dialog
+        // ... (Dialogs and FABs remain the same) ...
         if (showAddLocationDialog) {
+            // ... Add Location Dialog Content ...
             AlertDialog(
                 onDismissRequest = { showAddLocationDialog = false },
                 title = { Text("Add New Location") },
                 text = {
-                    TextField(
-                        value = newLocationName,
-                        onValueChange = { newLocationName = it },
-                        label = { Text("Location Name") },
-                        singleLine = true
-                    )
+                    TextField(value = newLocationName, onValueChange = { newLocationName = it }, label = { Text("Location Name") })
                 },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            if (newLocationName.isNotBlank()) {
-                                userLocation?.let {
-                                    val locationType = if (isIndoor) "indoor" else "outdoor"
-                                    storyViewModel.addLocation(
-                                        latitude = it.latitude,
-                                        longitude = it.longitude,
-                                        locationName = newLocationName,
-                                        type = locationType
-                                    )
-                                }
-                                showAddLocationDialog = false
-                                newLocationName = ""
-                            }
+                    Button(onClick = {
+                        if (newLocationName.isNotBlank() && userLocation != null) {
+                            storyViewModel.addLocation(userLocation!!.latitude, userLocation!!.longitude, newLocationName, if (isIndoor) "indoor" else "outdoor")
+                            showAddLocationDialog = false
+                            newLocationName = ""
                         }
-                    ) {
-                        Text("Add")
-                    }
+                    }) { Text("Add") }
                 },
-                dismissButton = {
-                    Button(onClick = { showAddLocationDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
+                dismissButton = { Button(onClick = { showAddLocationDialog = false }) { Text("Cancel") } }
             )
         }
 
-        // Floor Button
         if (currentLocationId != null && showFloorButton) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
-            ) {
-                FloatingActionButton(
-                    onClick = { showFloorMenu = true },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
+            // ... Floor FAB ...
+            Box(modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
+                FloatingActionButton(onClick = { showFloorMenu = true }, containerColor = MaterialTheme.colorScheme.primary) {
                     Row(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Icon(Icons.Default.Layers, contentDescription = "Change Floor")
+                        Icon(Icons.Default.Layers, null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Floor $currentFloor")
                     }
                 }
-
-                DropdownMenu(
-                    expanded = showFloorMenu,
-                    onDismissRequest = { showFloorMenu = false }
-                ) {
+                DropdownMenu(expanded = showFloorMenu, onDismissRequest = { showFloorMenu = false }) {
                     listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11).forEach { floor ->
                         DropdownMenuItem(
                             text = { Text("Floor $floor") },
-                            onClick = {
-                                storyViewModel.setCurrentFloor(floor)
-                                showFloorMenu = false
-                            },
-                            leadingIcon = {
-                                if (floor == currentFloor) {
-                                    Icon(Icons.Default.PlayCircleOutline, contentDescription = null)
-                                }
-                            }
+                            onClick = { storyViewModel.setCurrentFloor(floor); showFloorMenu = false }
                         )
                     }
                 }

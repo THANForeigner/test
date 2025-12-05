@@ -104,25 +104,33 @@ class StoryViewModel : ViewModel() {
                     for (document in snapshot.documents) {
                         val lat = document.getDouble("latitude")
                         val lng = document.getDouble("longitude")
+                        var lat1: Double? = null
+                        var lat2: Double? = null
+                        var lat3: Double? = null
+                        var lat4: Double? = null
+                        var lng1: Double? = null
+                        var lng2: Double? = null
+                        var lng3: Double? = null
+                        var lng4: Double? = null
 
                         // 1. Fetch Zone Flag (default to false if missing)
                         val isZone = document.getBoolean("zone") ?: false
 
-                        // 2. Fetch Corners (1, 2, 3, 4)
-                        val lat1 = document.getDouble("latitude1")
-                        val lng1 = document.getDouble("longitude1")
-                        val lat2 = document.getDouble("latitude2")
-                        val lng2 = document.getDouble("longitude2")
-                        val lat3 = document.getDouble("latitude3")
-                        val lng3 = document.getDouble("longitude3")
-                        val lat4 = document.getDouble("latitude4")
-                        val lng4 = document.getDouble("longitude4")
-
+                        if(isZone) {
+                            lat1 = document.getDouble("latitude1")
+                            lng1 = document.getDouble("longitude1")
+                            lat2 = document.getDouble("latitude2")
+                            lng2 = document.getDouble("longitude2")
+                            lat3 = document.getDouble("latitude3")
+                            lng3 = document.getDouble("longitude3")
+                            lat4 = document.getDouble("latitude4")
+                            lng4 = document.getDouble("longitude4")
+                            Log.d("ZoneDebug", "Zone: $lat1, $lng1, $lat2, $lng2, $lat3, $lng3, $lat4, $lng4")
+                        }
                         if (lat != null && lng != null) {
                             val locationId = document.id
                             var floors = emptyList<Int>()
                             if (type == "indoor") {
-                                // ... (fetching floors logic remains the same) ...
                                 val floorSnapshot = rootRef.collection(collectionName)
                                     .document(locationId)
                                     .collection("floor")
@@ -140,7 +148,6 @@ class StoryViewModel : ViewModel() {
                                     type = type,
                                     floors = floors,
                                     isZone = isZone,
-                                    // Map the corners
                                     latitude1 = lat1, longitude1 = lng1,
                                     latitude2 = lat2, longitude2 = lng2,
                                     latitude3 = lat3, longitude3 = lng3,
