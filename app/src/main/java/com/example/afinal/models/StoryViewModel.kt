@@ -125,7 +125,7 @@ class StoryViewModel : ViewModel() {
                             lng3 = document.getDouble("longitude3")
                             lat4 = document.getDouble("latitude4")
                             lng4 = document.getDouble("longitude4")
-                            Log.d("ZoneDebug", "Zone: $lat1, $lng1, $lat2, $lng2, $lat3, $lng3, $lat4, $lng4")
+                            Log.d("ZoneDebug", "Zone loaded: $lat1, $lng1 ...")
                         }
                         if (lat != null && lng != null) {
                             val locationId = document.id

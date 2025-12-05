@@ -51,11 +51,13 @@ fun AudiosScreen(
     // 2. REPLACED FetchAudio WITH SYNCED ZONE LOGIC
     LaunchedEffect(userLocation, allLocations) {
         if (userLocation != null && allLocations.isNotEmpty()) {
-            // UPDATED: Use findCurrentLocation (handles Zones + Radius)
-            val currentLoc = DistanceCalculator.findCurrentLocation(
+            // UPDATED: Use findNearestLocation instead of findCurrentLocation
+            // This ensures we check distance to the Polygon Edge (Zone) or Point
+            val currentLoc = DistanceCalculator.findNearestLocation(
                 userLat = userLocation!!.latitude,
                 userLng = userLocation!!.longitude,
                 candidates = allLocations
+                // default radius of 3.0m is used here
             )
 
             if (currentLoc != null) {

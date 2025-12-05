@@ -91,8 +91,8 @@ class LocationReceiver : BroadcastReceiver() {
         }
 
         // [USE CENTRALIZED DISTANCE LOGIC]
-        // This now uses the shared logic (Zone Polygon check + Radius check)
-        val currentLoc = DistanceCalculator.findCurrentLocation(lat, lng, allLocations)
+        // UPDATED: Use findNearestLocation to support distance-to-edge calculation for zones
+        val currentLoc = DistanceCalculator.findNearestLocation(lat, lng, allLocations)
 
         if (currentLoc != null) {
             Log.d(TAG, ">>> Entered Location: ${currentLoc.id}. Fetching story...")

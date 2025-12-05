@@ -1,6 +1,7 @@
 package com.example.afinal.ultis
 
 import android.location.Location
+import android.util.Log
 import com.example.afinal.data.ZoneData
 import com.example.afinal.models.LocationModel
 import com.google.android.gms.maps.model.LatLng
@@ -40,6 +41,54 @@ object DistanceCalculator {
         return (intersectCount % 2) == 1
     }
 
+    // --- NEW HELPER: Distance from point to segment ---
+    private fun pointToSegmentDistance(
+        userLat: Double, userLng: Double,
+        lat1: Double, lon1: Double,
+        lat2: Double, lon2: Double
+    ): Float {
+        val dLat = lat2 - lat1
+        val dLon = lon2 - lon1
+
+        if (dLat == 0.0 && dLon == 0.0) {
+            return getDistance(userLat, userLng, lat1, lon1)
+        }
+
+        // Project point onto line (parameter t) to find the closest point on the infinite line
+        val t = ((userLat - lat1) * dLat + (userLng - lon1) * dLon) / (dLat * dLat + dLon * dLon)
+
+        // Clamp t to the segment [0, 1] to handle cases where the closest point is an endpoint
+        val tClamped = t.coerceIn(0.0, 1.0)
+
+        val closestLat = lat1 + tClamped * dLat
+        val closestLon = lon1 + tClamped * dLon
+
+        return getDistance(userLat, userLng, closestLat, closestLon)
+    }
+
+    // --- NEW HELPER: Distance to Zone (0 if inside, else dist to closest edge) ---
+    private fun getDistanceToZone(userLat: Double, userLng: Double, zone: ZoneData): Float {
+        // If inside, distance is effectively 0
+        if (isInsidePolygon(userLat, userLng, zone)) return 0f
+
+        var minDistance = Float.MAX_VALUE
+        val corners = zone.corners
+        if (corners.isEmpty()) return Float.MAX_VALUE
+
+        // Iterate over all edges to find the closest one
+        for (i in 0 until corners.size) {
+            val p1 = corners[i]
+            val p2 = corners[(i + 1) % corners.size] // Wrap around to form closed loop
+
+            val d = pointToSegmentDistance(userLat, userLng, p1.first, p1.second, p2.first, p2.second)
+            if (d < minDistance) {
+                minDistance = d
+            }
+        }
+        Log.d("ZoneDebug","$minDistance")
+        return minDistance
+    }
+
     // --- MAIN FINDER ---
     fun findCurrentLocation(
         userLat: Double,
@@ -73,7 +122,13 @@ object DistanceCalculator {
         if (candidates.isEmpty()) return null
 
         val closestPair = candidates.map { loc ->
-            val distance = getDistance(userLat, userLng, loc.latitude, loc.longitude)
+            val distance = if (loc.isZone) {
+                // Use new zone distance logic
+                getDistanceToZone(userLat, userLng, loc.toZoneData())
+            } else {
+                // Use existing point logic
+                getDistance(userLat, userLng, loc.latitude, loc.longitude)
+            }
             loc to distance
         }.minByOrNull { it.second }
 
