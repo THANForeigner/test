@@ -52,12 +52,15 @@ object DataRepository {
     suspend fun uploadData(
         context: Context,
         ngrokUrl: String,
+        collectionName: String,
         title: String,
         description: String,
         tags: String,
         userId : String,
         userEmail : String,
         userName: String,
+        latitude: String,
+        longitude: String,
         textInput: String?,
         audioUri: Uri?,
         imageUri: Uri?
@@ -75,13 +78,15 @@ object DataRepository {
                     .build()
 
                 val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+                multipart.addFormDataPart("collection_name", collectionName)
                 multipart.addFormDataPart("title", title)
                 multipart.addFormDataPart("description", description)
                 multipart.addFormDataPart("list_tags", tags)
                 multipart.addFormDataPart("user_id", userId)
                 multipart.addFormDataPart("user_email", userEmail)
                 multipart.addFormDataPart("user_name", userName)
-
+                multipart.addFormDataPart("latitude", latitude)
+                multipart.addFormDataPart("longitude", longitude)
                 if (imageUri != null) {
                     val file = uriToFile(context, imageUri)
                     if (file != null) {
@@ -127,6 +132,7 @@ fun AddPostScreen(
     locationViewModel: LocationViewModel = viewModel(),
     storyViewModel: StoryViewModel = viewModel()
 ) {
+    val location by locationViewModel.location
     var name by remember { mutableStateOf("") } // Dùng làm Title
     var description by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
@@ -172,26 +178,28 @@ fun AddPostScreen(
 
         isLoading = true
         coroutineScope.launch {
+            val latStr = location?.latitude?.toString() ?: ""
+            val lngStr = location?.longitude?.toString() ?: ""
+
             val error = DataRepository.uploadData(
                 context = context,
                 ngrokUrl = ngrokUrl,
+                collectionName = "records",
                 title = name,
                 description = description,
                 tags = tagsInput,
-
                 userId = currentUser.uid,
                 userEmail = currentUser.email ?: "No Email",
                 userName = currentUser.displayName ?: "Anonymous",
-
+                latitude = latStr,
+                longitude = lngStr,
                 textInput = if (selectedTabIndex == 1) textInput else null,
                 audioUri = if (selectedTabIndex == 0) audioUri else null,
                 imageUri = imageUri
             )
-
             isLoading = false
             if (error.isEmpty()) {
                 Toast.makeText(context, "✅ Sent to Colab AI!", Toast.LENGTH_LONG).show()
-                // Reset fields
                 name = ""
                 description = ""
                 audioUri = null
