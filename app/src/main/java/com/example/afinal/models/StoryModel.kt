@@ -10,10 +10,10 @@ data class StoryModel(
     val name: String = "",
     val description: String = "",
     val user: String = "",
-    @PropertyName("audioUrl")
-    val audioUrl: String? = null,
     val likes: Int = 0,
     val dislikes: Int = 0,
+    @PropertyName("audioUrl")
+    val audioUrl: String? = null,
     var playableUrl: String = "",
     var locationName: String = "",
     val position: Position? = null,
