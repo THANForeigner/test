@@ -22,11 +22,22 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.afinal.ui.screen.*
+import com.example.afinal.ui.screen.AddPostScreen
+import com.example.afinal.ui.screen.AudiosScreen
+import com.example.afinal.ui.screen.AudioPlayerScreen
+import com.example.afinal.ui.screen.BarometerScreen
+import com.example.afinal.ui.screen.ForgotPasswordScreen
+import com.example.afinal.ui.screen.HomeScreen
+import com.example.afinal.ui.screen.LoginScreen
+import com.example.afinal.ui.screen.MainAppScreen
+import com.example.afinal.ui.screen.MapScreen
+import com.example.afinal.ui.screen.RegisterScreen
+import com.example.afinal.ui.screen.UserScreen
 import com.example.afinal.ui.theme.FINALTheme
 import com.example.afinal.models.LocationViewModel
 import com.example.afinal.models.StoryViewModel
 import com.example.afinal.logic.AudioPlayerService
+import com.example.afinal.models.AuthViewModel
 import com.example.afinal.models.StoryModel
 import com.google.firebase.auth.FirebaseAuth
 import com.example.afinal.data.model.Story
@@ -52,6 +63,7 @@ fun AppNavigation(
     startIntent: Intent? = null,
     locationViewModel: LocationViewModel,
     storyViewModel: StoryViewModel,
+    authViewModel: AuthViewModel = viewModel(),
     audioService: AudioPlayerService?,
     onStorySelected: (Story) -> Unit
 ) {
@@ -112,6 +124,7 @@ fun AppNavigation(
                     navController = navController,
                     storyId = storyId,
                     storyViewModel = storyViewModel,
+                    authViewModel = authViewModel,
                     audioService = audioService,
                     onStoryLoaded = onStorySelected
                 )

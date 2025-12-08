@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 import com.example.afinal.data.model.Story
+import com.example.afinal.data.model.Comment
+import com.example.afinal.data.model.Reaction
 
 class StoryViewModel : ViewModel() {
     private val _locations = mutableStateOf<List<LocationModel>>(emptyList())
@@ -33,6 +35,12 @@ class StoryViewModel : ViewModel() {
     // Using Story class instead of StoryModel
     private val _allStories = mutableStateOf<List<Story>>(emptyList())
     val allStories: State<List<Story>> = _allStories
+
+    private val _comments = mutableStateOf<List<Comment>>(emptyList())
+    val comments: State<List<Comment>> = _comments
+
+    private val _reactions = mutableStateOf<List<Reaction>>(emptyList())
+    val reactions: State<List<Reaction>> = _reactions
 
     private val _isIndoor = mutableStateOf(false)
     val isIndoor: State<Boolean> = _isIndoor
@@ -337,6 +345,14 @@ class StoryViewModel : ViewModel() {
                                 // Keep original or set empty on error
                             }
                         }
+
+                        // Fetch comments count
+                        val commentsSnapshot = doc.reference.collection("comments").get().await()
+                        story.commentsCount = commentsSnapshot.size()
+
+                        // Fetch reactions count
+                        val reactionsSnapshot = doc.reference.collection("reactions").get().await()
+                        story.reactionsCount = reactionsSnapshot.size()
                     }
 
                     story
@@ -361,5 +377,77 @@ class StoryViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         storyListener?.remove()
+    }
+
+    fun addComment(storyId: String, comment: Comment, locationId: String? = null) {
+        val storyRef = getStoryDocumentReference(storyId, locationId)
+        if (storyRef == null) {
+            Log.e("StoryViewModel", "Cannot add comment, story reference not found for story $storyId")
+            return
+        }
+
+        storyRef.collection("comments").add(comment)
+            .addOnSuccessListener {
+                Log.d("StoryViewModel", "Comment added successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e("StoryViewModel", "Error adding comment", e)
+            }
+    }
+
+    fun addReaction(storyId: String, reaction: Reaction, locationId: String? = null) {
+        val storyRef = getStoryDocumentReference(storyId, locationId)
+        if (storyRef == null) {
+            Log.e("StoryViewModel", "Cannot add reaction, story reference not found for story $storyId")
+            return
+        }
+
+        storyRef.collection("reactions").document(reaction.userId).set(reaction)
+            .addOnSuccessListener {
+                Log.d("StoryViewModel", "Reaction added successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e("StoryViewModel", "Error adding reaction", e)
+            }
+    }
+
+    fun getComments(storyId: String, locationId: String? = null) {
+        val storyRef = getStoryDocumentReference(storyId, locationId)
+        if (storyRef == null) {
+            Log.e("StoryViewModel", "Cannot get comments, story reference not found for story $storyId")
+            return
+        }
+
+        storyRef.collection("comments").orderBy("timestamp")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("StoryViewModel", "Error fetching comments", e)
+                    return@addSnapshotListener
+                }
+
+                snapshot?.let {
+                    _comments.value = it.toObjects(Comment::class.java)
+                }
+            }
+    }
+
+    fun getReactions(storyId: String, locationId: String? = null) {
+        val storyRef = getStoryDocumentReference(storyId, locationId)
+        if (storyRef == null) {
+            Log.e("StoryViewModel", "Cannot get reactions, story reference not found for story $storyId")
+            return
+        }
+
+        storyRef.collection("reactions")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("StoryViewModel", "Error fetching reactions", e)
+                    return@addSnapshotListener
+                }
+
+                snapshot?.let {
+                    _reactions.value = it.toObjects(Reaction::class.java)
+                }
+            }
     }
 }

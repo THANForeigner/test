@@ -1,6 +1,7 @@
 package com.example.afinal.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 data class Story(
@@ -22,7 +23,9 @@ data class Story(
     val locationName: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val audioResourceId: Int = 0
+    val audioResourceId: Int = 0,
+    @get:Exclude @set:Exclude var commentsCount: Int = 0,
+    @get:Exclude @set:Exclude var reactionsCount: Int = 0
 ) {
     val name: String get() = title
 }

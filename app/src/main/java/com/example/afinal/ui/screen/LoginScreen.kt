@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.compose.ui.res.stringResource
 import com.example.afinal.navigation.Routes
 import com.example.afinal.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -42,6 +43,7 @@ fun LoginScreen(navController: NavController) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val passwordFocusRequester = remember { FocusRequester() }
+    val webClientId = stringResource(R.string.default_web_client_id)
 
     val googleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -206,7 +208,7 @@ fun LoginScreen(navController: NavController) {
             onClick = {
                 if (!isLoading) {
                     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(context.getString(R.string.default_web_client_id))
+                        .requestIdToken(webClientId)
                         .requestEmail()
                         .build()
                     val googleClient = GoogleSignIn.getClient(context, gso)

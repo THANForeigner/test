@@ -34,10 +34,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <receiver
-            android:name=".ultis.GeofenceBroadcastReceiver"
-            android:exported="true"
-            android:enabled="true" />
         <service
             android:name=".logic.AudioPlayerService"
             android:enabled="true"
