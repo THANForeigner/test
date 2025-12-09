@@ -124,10 +124,10 @@ class LocationReceiver : BroadcastReceiver() {
         if (!snapshot.isEmpty) {
             val storyDoc = snapshot.documents.first()
             val storyId = storyDoc.id
-            val title = storyDoc.getString("name") ?: "New Story"
-            val user = storyDoc.getString("user") ?: "Unknown User"
-            var audioUrl = storyDoc.getString("audioUrl") ?: ""
-
+            val title = storyDoc.getString("title") ?: "New Story"
+            val user = storyDoc.getString("user_name") ?: "Unknown User"
+            var audioUrl = storyDoc.getString("audio_url") ?: ""
+            Log.d("LocationReceiver", ">>> Story ID: $storyId, Title: $title, User: $user, Audio URL: $audioUrl")
             if (audioUrl.startsWith("gs://")) {
                 try {
                     val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(audioUrl)

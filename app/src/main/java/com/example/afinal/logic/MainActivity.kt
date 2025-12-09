@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
                         if (hasAllPermissions) {
                             try {
                                 val client = LocationServices.getFusedLocationProviderClient(context)
-                                val locationRequest = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 15000)
+                                val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
                                     .setMinUpdateDistanceMeters(20f)
                                     .build()
                                 val intent = Intent(context, LocationReceiver::class.java)
