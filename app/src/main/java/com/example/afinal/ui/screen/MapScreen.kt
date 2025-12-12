@@ -103,7 +103,7 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(brush = AppGradients.Teal)
+                .background(brush = AppGradients.mapScreen)
                 .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

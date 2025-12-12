@@ -91,7 +91,7 @@ fun AudioPlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(brush = AppGradients.Red)
+            .background(brush = AppGradients.audioPlayer)
     ) {
         Scaffold(
             containerColor = Color.Transparent,

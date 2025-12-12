@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.afinal.navigation.Routes
+import com.example.afinal.ui.theme.AppGradients
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.storage.FirebaseStorage
@@ -104,10 +105,7 @@ fun UserScreen(mainNavController: NavController) {
     // --- UI Mới ---
 
     // Màu gradient giống mẫu (Tím/Hồng)
-    val gradientColors = listOf(
-        Color(0xFFD946EF), // Pink
-        Color(0xFF8B5CF6)  // Purple
-    )
+    val gradientColors = AppGradients.userScreen
 
     Box(
         modifier = Modifier
@@ -120,7 +118,7 @@ fun UserScreen(mainNavController: NavController) {
                 .fillMaxWidth()
                 .height(280.dp) // Chiều cao phủ xuống dưới Card một chút
                 .background(
-                    brush = Brush.verticalGradient(gradientColors)
+                    brush = AppGradients.userScreen
                 )
         )
 
@@ -257,7 +255,7 @@ fun UserScreen(mainNavController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Section: Your Stories ---
+            // --- Section: Your Stories (Empty List) ---
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Your Stories",

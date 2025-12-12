@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
@@ -31,6 +33,7 @@ import com.example.afinal.models.AuthViewModel
 import com.example.afinal.models.StoryModel
 import com.google.firebase.auth.FirebaseAuth
 import com.example.afinal.data.model.Story
+import com.example.afinal.ui.theme.*
 
 object Routes {
     const val LOGIN = "login"
@@ -194,22 +197,53 @@ fun MainAppScreen(
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
+    // Định nghĩa danh sách tab với màu chủ đạo riêng
     val items = listOf(
-        BottomNavItem("Home", Routes.HOME, Icons.Default.Home),
-        BottomNavItem("Map", Routes.MAP, Icons.Default.Map),
-        BottomNavItem("Audio", Routes.AUDIOS, Icons.Default.Headphones),
-        BottomNavItem("User", Routes.USER, Icons.Default.Person),
+        BottomNavItem(
+            title = "Home",
+            route = Routes.HOME,
+            icon = Icons.Default.Home,
+            color = BluePrimary
+        ),
+        BottomNavItem(
+            title = "Map",
+            route = Routes.MAP,
+            icon = Icons.Default.Map,
+            color = TealAccent
+        ),
+        BottomNavItem(
+            title = "Audio",
+            route = Routes.AUDIOS,
+            icon = Icons.Default.Headphones,
+            color = BlueLight
+        ),
+        BottomNavItem(
+            title = "User",
+            route = Routes.USER,
+            icon = Icons.Default.Person,
+            color = BlueDark
+        ),
     )
 
-    NavigationBar {
+    NavigationBar(
+        containerColor = Color.White, // Nền trắng sạch sẽ
+        tonalElevation = 8.dp
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 
         items.forEach { item ->
+            val isSelected = currentRoute == item.route
+
             NavigationBarItem(
                 icon = { Icon(item.icon, contentDescription = item.title) },
-                label = { Text(item.title) },
-                selected = currentRoute == item.route,
+                label = {
+                    Text(
+                        text = item.title,
+                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+                    )
+                },
+                selected = isSelected,
                 onClick = {
                     navController.navigate(item.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -218,13 +252,30 @@ fun BottomNavigationBar(navController: NavController) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                }
+                },
+                // Cấu hình màu sắc Highlight theo từng item
+                colors = NavigationBarItemDefaults.colors(
+                    // 1. Khi được chọn:
+                    selectedIconColor = Color.White,       // Icon chuyển sang trắng
+                    selectedTextColor = item.color,        // Chữ chuyển sang màu chủ đạo của tab
+                    indicatorColor = item.color,           // Pill (nền icon) có màu chủ đạo
+
+                    // 2. Khi KHÔNG chọn:
+                    unselectedIconColor = Color.Gray,
+                    unselectedTextColor = Color.Gray
+                )
             )
         }
     }
 }
 
-data class BottomNavItem(val title: String, val route: String, val icon: ImageVector)
+// Cập nhật Data Class thêm trường color
+data class BottomNavItem(
+    val title: String,
+    val route: String,
+    val icon: ImageVector,
+    val color: Color
+)
 
 @Preview(showBackground = true)
 @Composable

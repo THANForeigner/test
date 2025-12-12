@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.afinal.data.model.Story
-import com.example.afinal.ui.component.CircleGradientButton
 import com.example.afinal.ui.theme.AppGradients
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat

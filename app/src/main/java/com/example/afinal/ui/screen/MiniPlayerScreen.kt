@@ -39,7 +39,7 @@ fun MiniPlayer(
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
-            .background(brush = AppGradients.Red)
+            .background(brush = AppGradients.audioPlayer)
             .clickable { onClick() }
     ) {
         Row(
