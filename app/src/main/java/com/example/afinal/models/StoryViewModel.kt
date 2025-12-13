@@ -39,7 +39,18 @@ class StoryViewModel : ViewModel() {
     val topTrendingStories = derivedStateOf {
         _allStories.value.sortedByDescending { story ->
             story.reactionsCount + story.commentsCount
-        }.take(3)
+        }.take(5)
+    }
+
+    val hotLocations = derivedStateOf {
+        val stories = _allStories.value
+        val locs = _locations.value
+
+        val locationCounts = stories.groupingBy { it.locationName }.eachCount()
+
+        locs.filter { locationCounts.containsKey(it.id) }
+            .sortedByDescending { locationCounts[it.id] ?: 0 }
+            .take(5)
     }
 
     private val _comments = mutableStateOf<List<Comment>>(emptyList())
@@ -490,5 +501,9 @@ class StoryViewModel : ViewModel() {
                     _reactions.value = it.toObjects(Reaction::class.java)
                 }
             }
+    }
+
+    fun getStoryCountForLocation(locationId: String): Int {
+        return _allStories.value.count { it.locationName == locationId }
     }
 }
