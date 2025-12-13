@@ -145,7 +145,7 @@ fun AddPostScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var textInput by remember { mutableStateOf("") }
     var tagsInput by remember {
-        mutableStateOf("Romance, Pet, Mysteries, Facilities information, Health, Food and drink, Social and communities, Personal experience, Warning, Study Hacks, Library Vibes, Confessions, Motivation, Gaming, Burnout, Emotional support")
+        mutableStateOf("Romance, Pet, Mysteries, Facilities information, Health, Food and drink, Social and communities, Personal experience, Warning, Study Hacks, Library Vibes, Confessions, Motivation, Gaming, Burnout, Emotional support, Announcement")
     }
 
     var selectedFloor by remember { mutableStateOf<Int?>(null) }
