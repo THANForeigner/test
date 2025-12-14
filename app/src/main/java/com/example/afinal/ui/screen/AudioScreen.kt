@@ -40,7 +40,10 @@ val STORY_TAGS = listOf(
     "Health", "Food and drink", "Social and communities",
     "Personal experience", "Warning", "Study Hacks",
     "Library Vibes", "Confessions", "Motivation",
-    "Gaming", "Burnout", "Emotional support", "Announcement"
+    "Gaming", "Burnout", "Emotional support", "Important Announcement", "Academic Contest",
+    "Academic Collaboration", "Clubs", "Sport", "Achievement", "Amazing Individuals", "Cyber problems warning",
+    "Social Activities", "Seminar", "After-class Activities", "Volunteer Campaigns", "Online Activities", "Club Recruitment", "Questions & Answers",
+    "Scholarship"
 )
 
 @Composable

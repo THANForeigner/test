@@ -47,7 +47,7 @@ fun HomeScreen(
     val allStories by storyViewModel.allStories
 
     // Config News
-    val targetNewsTags = listOf("Announcement", "Facilities information", "Social and communities", "Warning")
+    val targetNewsTags = listOf("Important Announcement", "Facilities information", "Warning")
     val newsStories = allStories.filter { story ->
         story.tags.any { tag -> targetNewsTags.contains(tag) }
     }.sortedByDescending { it.id }.take(5)
