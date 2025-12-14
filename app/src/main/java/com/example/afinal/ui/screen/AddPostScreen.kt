@@ -138,6 +138,7 @@ fun AddPostScreen(
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var isAnonymous by remember { mutableStateOf(false) }
     var audioUri by remember { mutableStateOf<Uri?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
@@ -201,7 +202,7 @@ fun AddPostScreen(
                 tags = tagsInput,
                 userId = currentUser.uid,
                 userEmail = currentUser.email ?: "No Email",
-                userName = currentUser.displayName ?: "Anonymous",
+                userName = if (isAnonymous) "Anonymous" else (currentUser.displayName ?: "Anonymous"),
                 latitude = latStr,
                 longitude = lngStr,
                 textInput = if (selectedTabIndex == 1) textInput else null,
@@ -210,14 +211,10 @@ fun AddPostScreen(
             )
             isLoading = false
             if (error.isEmpty()) {
-                Toast.makeText(context, "✅ Sent to Colab AI!", Toast.LENGTH_LONG).show()
-                name = ""
-                description = ""
-                audioUri = null
-                textInput = ""
-                imageUri = null
+                Toast.makeText(context, "Your post has been uploaded!", Toast.LENGTH_LONG).show()
+                navController.popBackStack()
             } else {
-                Toast.makeText(context, "❌ Error: $error", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Error: $error", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -315,6 +312,25 @@ fun AddPostScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isAnonymous = !isAnonymous },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = isAnonymous,
+                    onCheckedChange = { isAnonymous = it }
+                )
+                Text(
+                    text = "Post anonymously",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
