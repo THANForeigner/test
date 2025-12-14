@@ -32,6 +32,8 @@ import com.example.afinal.models.AuthViewModel
 import com.example.afinal.models.StoryViewModel
 import com.example.afinal.ui.theme.AppGradients
 import kotlinx.coroutines.delay
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,15 +149,27 @@ fun AudioPlayerScreen(
                             .fillMaxWidth()
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color.Black.copy(alpha = 0.2f)), // Placeholder bg
+                            .background(Color.Black.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = "Cover Art",
-                            modifier = Modifier.size(120.dp),
-                            tint = Color.White.copy(alpha = 0.8f)
-                        )
+                        // Lấy ảnh đầu tiên trong list (nếu có)
+                        val coverImage = story.imageUrl
+
+                        if (!coverImage.isNullOrBlank()) {
+                            AsyncImage(
+                                model = coverImage,
+                                contentDescription = "Album Art",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Cover Art Placeholder",
+                                modifier = Modifier.size(120.dp),
+                                tint = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(40.dp))
@@ -174,7 +188,7 @@ fun AudioPlayerScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = "by ${if (story.user_name.isBlank()) "Unknown Author" else story.user_name}",
+                                text = "by ${if (story.user_name.isBlank()) "Anonymous" else story.user_name}",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -182,6 +196,24 @@ fun AudioPlayerScreen(
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    if (story.description.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 100.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = story.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
 
                     // --- 3. SLIDER & CONTROLS ---
                     PlayerControlsSection(
@@ -379,21 +411,58 @@ fun CommentsSectionStyle(storyViewModel: StoryViewModel, authViewModel: AuthView
 
         // List Comments
         if (comments.isNotEmpty()) {
-            comments.take(3).forEach { comment ->
-                Row(modifier = Modifier.padding(vertical = 8.dp)) {
-                    // Avatar giả
-                    Box(modifier = Modifier.size(32.dp).background(Color(0xFFE1BEE7), CircleShape), contentAlignment = Alignment.Center) {
-                        Text(comment.userId.take(1).uppercase(), color = Color(0xFF4A148C), fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(comment.userId, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
+            if (comments.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    comments.forEach { comment ->
+                        Row(modifier = Modifier.padding(vertical = 8.dp)) {
+                            // Avatar giả
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFFE1BEE7), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = comment.userId.take(1).uppercase(),
+                                    color = Color(0xFF4A148C),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = comment.userId,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = comment.comment,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            }
                         }
-                        Text(comment.comment, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
+                        Divider(color = Color.White.copy(alpha = 0.1f), thickness = 0.5.dp)
                     }
                 }
+            } else {
+                Text(
+                    "No comments yet. Be the first to share!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
             }
         }
     }

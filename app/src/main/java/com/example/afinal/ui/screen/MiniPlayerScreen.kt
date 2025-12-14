@@ -18,15 +18,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.afinal.ui.theme.AppGradients // Đảm bảo import đúng AppGradient
 
 @Composable
 fun MiniPlayer(
     title: String,
     user: String,
+    image: String,
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
@@ -56,13 +59,23 @@ fun MiniPlayer(
                     .background(Color.Black.copy(alpha = 0.2f)), // Placeholder background
                 contentAlignment = Alignment.Center
             ) {
-                // Thay bằng Image(painter = rememberAsyncImagePainter(url)...) nếu có
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.size(24.dp)
-                )
+                val coverImage = image
+
+                if (!coverImage.isNullOrBlank()) {
+                    AsyncImage(
+                        model = coverImage,
+                        contentDescription = "Album Art",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = "Cover Art Placeholder",
+                        modifier = Modifier.size(120.dp),
+                        tint = Color.White.copy(alpha = 0.8f)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
