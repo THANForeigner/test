@@ -172,7 +172,7 @@ class MainActivity : ComponentActivity() {
                                     MiniPlayer(
                                         title = currentPlayingStory!!.title,
                                         user = currentPlayingStory!!.user_name,
-
+                                        image = currentPlayingStory!!.imageUrl,
                                         isPlaying = isPlaying,
                                         onPlayPause = { if (isPlaying) audioService?.pauseAudio() else audioService?.resumeAudio() },
                                         onClose = { audioService?.pauseAudio(); currentPlayingStory = null },

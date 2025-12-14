@@ -147,7 +147,6 @@ fun MainAppScreen(
             startDestination = Routes.HOME,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // --- SỬA ĐOẠN NÀY ---
             composable(Routes.HOME) {
                 HomeScreen(
                     storyViewModel = storyViewModel,
@@ -189,7 +188,7 @@ fun MainAppScreen(
                 )
             }
 
-            composable(Routes.USER) { UserScreen(mainNavController = mainNavController) }
+            composable(Routes.USER) { UserScreen(mainNavController = mainNavController, storyViewModel = storyViewModel) }
             composable(Routes.BAROMETER) { BarometerScreen() }
         }
     }

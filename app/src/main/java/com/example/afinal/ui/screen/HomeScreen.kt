@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Park
@@ -48,14 +49,22 @@ fun HomeScreen(
     val recommendedStories by storyViewModel.recommendedStories
 
     // Config News
-    val targetNewsTags = listOf("Announcement", "Facilities information", "Social and communities", "Warning")
+    val targetNewsTags = listOf("Important Announcement", "Facilities information", "Warning")
     val newsStories = allStories.filter { story ->
         story.tags.any { tag -> targetNewsTags.contains(tag) }
-    }.sortedByDescending { it.id }.take(5)
+    }.sortedByDescending { it.created_at }.take(5)
+
+    // Config drl hunting
+    val trainingScoreHunting = listOf("Social Activities", "Seminar", "After-class Activities",
+        "Volunteer Campaigns", "Online Activities")
+    val trainingStoriesHunting = allStories.filter { story ->
+        story.tags.any { tag -> trainingScoreHunting.contains(tag) }
+    }.sortedByDescending { it.created_at }.take(5)
 
     // 3. Gradients & Colors
     val fireGradient = Brush.linearGradient(listOf(Color(0xFFFF8008), Color(0xFFFFC837)))
     val newsGradient = Brush.linearGradient(listOf(Color(0xFF00C6FF), Color(0xFF0072FF)))
+    val trainingGradient = Brush.linearGradient(listOf(Color(0xFF00FFC6), Color(0xFF00FF72)))
     val locationGradient = Brush.linearGradient(listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)))
     val recommendGradient = Brush.linearGradient(listOf(Color(0xFF43e97b), Color(0xFF38f9d7)))
 
