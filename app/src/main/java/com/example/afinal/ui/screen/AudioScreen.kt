@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -40,7 +42,9 @@ val STORY_TAGS = listOf(
     "Health", "Food and drink", "Social and communities",
     "Personal experience", "Warning", "Study Hacks",
     "Library Vibes", "Confessions", "Motivation",
-    "Gaming", "Burnout", "Emotional support", "Announcement"
+    "Gaming", "Burnout", "Emotional support", "School Important Announcement",
+    "Social Activities", "Seminar", "After-class Activities",
+    "Volunteer Campaigns", "Online Activities"
 )
 
 @Composable
@@ -278,33 +282,40 @@ fun TagFilterBar(
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
-            FlowRow(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .heightIn(max = 150.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                FilterChip(
-                    selected = selectedTag == null,
-                    onClick = { onTagSelected("") },
-                    label = { Text("All") },
-                    leadingIcon = if (selectedTag == null) {
-                        { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                    } else null
-                )
-
-                tags.forEach { tag ->
-                    val isSelected = selectedTag == tag
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     FilterChip(
-                        selected = isSelected,
-                        onClick = { onTagSelected(tag) },
-                        label = { Text(tag) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        selected = selectedTag == null,
+                        onClick = { onTagSelected("") },
+                        label = { Text("All") },
+                        leadingIcon = if (selectedTag == null) {
+                            { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                        } else null
                     )
+
+                    tags.forEach { tag ->
+                        val isSelected = selectedTag == tag
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onTagSelected(tag) },
+                            label = { Text(tag) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
                 }
             }
         }

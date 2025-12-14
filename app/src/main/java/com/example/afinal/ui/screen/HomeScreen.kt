@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Park
@@ -47,14 +48,22 @@ fun HomeScreen(
     val allStories by storyViewModel.allStories
 
     // Config News
-    val targetNewsTags = listOf("Announcement", "Facilities information", "Social and communities", "Warning")
+    val targetNewsTags = listOf("School Important Announcement")
     val newsStories = allStories.filter { story ->
         story.tags.any { tag -> targetNewsTags.contains(tag) }
+    }.sortedByDescending { it.id }.take(5)
+
+    // Config drl hunting
+    val trainingScoreHunting = listOf("Social Activities", "Seminar", "After-class Activities",
+        "Volunteer Campaigns", "Online Activities")
+    val trainingStoriesHunting = allStories.filter { story ->
+        story.tags.any { tag -> trainingScoreHunting.contains(tag) }
     }.sortedByDescending { it.id }.take(5)
 
     // 3. Gradients & Colors
     val fireGradient = Brush.linearGradient(listOf(Color(0xFFFF8008), Color(0xFFFFC837)))
     val newsGradient = Brush.linearGradient(listOf(Color(0xFF00C6FF), Color(0xFF0072FF)))
+    val trainingGradient = Brush.linearGradient(listOf(Color(0xFF00FFC6), Color(0xFF00FF72)))
     val locationGradient = Brush.linearGradient(listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)))
 
     Box(
@@ -167,7 +176,32 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(32.dp))
                         }
 
-                        // --- SECTION 3: HOT LOCATIONS ---
+                        // --- SECTION 3: TRAINING HUNTING ---
+                        SectionHeader(title = "Training-score Hunting", icon = Icons.Default.Event, gradient = trainingGradient)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (trainingStoriesHunting.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(newsStories) { story ->
+                                    Box(modifier = Modifier.fillParentMaxWidth(0.9f)) {
+                                        StoryCard(
+                                            story = story,
+                                            onClick = { onStoryClick(story.id) }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(32.dp))
+                        }
+
+                        // --- SECTION 4: HOT LOCATIONS ---
                         SectionHeader(title = "Hot Locations", icon = Icons.Default.Star, gradient = locationGradient)
                         Spacer(modifier = Modifier.height(16.dp))
 

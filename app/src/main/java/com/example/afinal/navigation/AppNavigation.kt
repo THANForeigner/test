@@ -147,7 +147,6 @@ fun MainAppScreen(
             startDestination = Routes.HOME,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // --- SỬA ĐOẠN NÀY ---
             composable(Routes.HOME) {
                 HomeScreen(
                     storyViewModel = storyViewModel,
