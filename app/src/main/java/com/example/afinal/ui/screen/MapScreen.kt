@@ -58,8 +58,15 @@ fun MapScreen(navController: NavController, storyViewModel: StoryViewModel) {
     ) == PackageManager.PERMISSION_GRANTED
 
     // 1. Start GPS
-    LaunchedEffect(hasForegroundPermission) {
-        if (hasForegroundPermission) myLocationUtils.requestLocationUpdate(locationViewModel)
+    val scope = rememberCoroutineScope()
+    DisposableEffect(hasForegroundPermission) {
+        val locationGPS = LocationGPS(context)
+        if (hasForegroundPermission) {
+            locationGPS.startTracking(locationViewModel, scope)
+        }
+        onDispose {
+            locationGPS.stopTracking()
+        }
     }
 
     // 2. Indoor Detection Flow

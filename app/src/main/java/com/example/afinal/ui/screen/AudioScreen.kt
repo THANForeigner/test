@@ -90,8 +90,14 @@ fun AudiosScreen(
     val isUserIndoor by indoorDetector.observeIndoorStatus()
         .collectAsState(initial = storyViewModel.isIndoor.value)
 
-    LaunchedEffect(Unit) {
-        LocationGPS(context).requestLocationUpdate(locationViewModel)
+    val scope = rememberCoroutineScope()
+    DisposableEffect(Unit) {
+        val locationGPS = LocationGPS(context)
+        locationGPS.startTracking(locationViewModel, scope)
+
+        onDispose {
+            locationGPS.stopTracking()
+        }
     }
 
     LaunchedEffect(userLocation, allLocations, isUserIndoor) {
